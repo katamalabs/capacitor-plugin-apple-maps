@@ -7,9 +7,9 @@ permissions:
   contents: read
 
 jobs:
-  # JavaScript/TypeScript: lint, format check, and the dist build.
+  # JavaScript/TypeScript: lint, format check, unit tests, and the dist build.
   js:
-    name: JS (lint + build)
+    name: JS (lint + test + build)
     runs-on: ubuntu-24.04
     steps:
       - name: checkout 🛒
@@ -25,6 +25,8 @@ jobs:
         run: npm run eslint
       - name: prettier ✨
         run: npm run prettier -- --check
+      - name: vitest 🧪
+        run: npm run test:web
       - name: build 📦
         run: npm run build
 
