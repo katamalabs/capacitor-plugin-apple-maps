@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { Capacitor } from '@capacitor/core';
-  import { AppleMap } from 'capacitor-plugin-apple-maps';
+  import { AppleMap, checkPermissions, requestPermissions } from 'capacitor-plugin-apple-maps';
   import { GoogleMap, LatLngBounds, MapType } from '@capacitor/google-maps';
 
   // ── Provider pick ─────────────────────────────────────────────────────────
@@ -13,6 +13,12 @@
   // no native Google equivalent (runtime color scheme, long-press, snapshot,
   // updateMarkers); those are the only places the Google branch does less, and
   // each is called out in a comment where it would otherwise appear.
+  //
+  // Apple also goes *beyond* Google parity, and the iOS smoke run touches each:
+  // permissions (check/request), camera bearing + tilt, getMapType, marker
+  // opacity/tint/z-index, dashed + geodesic polylines, programmatic
+  // select/deselect, camera boundary, 3D buildings, user tracking + the native
+  // tracking button, and overlay-tap + my-location-tap listeners.
   const isIOS = Capacitor.getPlatform() === 'ios';
   const googleKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '';
 
@@ -114,7 +120,17 @@
   async function runAppleSmokeSequence(am: AppleMap) {
     await step('getCameraPosition', async () => {
       const pos = await am.getCameraPosition();
-      return `zoom ${pos.zoom.toFixed(1)}`;
+      return `zoom ${pos.zoom.toFixed(1)}, bearing ${pos.bearing.toFixed(0)}°, tilt ${pos.angle.toFixed(0)}°`;
+    });
+
+    await step('getMapType', async () => {
+      return await am.getMapType();
+    });
+
+    await step('checkPermissions', async () => {
+      // Read-only — never prompts. requestPermissions() is wired to "My location".
+      const status = await checkPermissions();
+      return `location: ${status.location}`;
     });
 
     await step('addPolylines', async () => {
@@ -206,6 +222,72 @@
       await am.setPadding({ top: 8, left: 8, right: 8, bottom: 8 });
       await am.setGestures({ scroll: true, zoom: true, rotate: true, pitch: true });
       return 'ok';
+    });
+
+    await step('setCamera bearing/tilt', async () => {
+      // Rotate + tilt the camera (0.6.0), then reset to north-up / top-down.
+      await am.setCamera({ coordinate: center, zoom: 12, bearing: 45, angle: 30, animate: true });
+      await am.setCamera({ coordinate: center, zoom: 12, bearing: 0, angle: 0, animate: true });
+      return 'rotate 45° / tilt 30° → reset';
+    });
+
+    await step('marker style (opacity/tint/z)', async () => {
+      // Opacity applies to any marker; tint recolors the default pin (0.6.0).
+      await am.updateMarkers([{ markerId: 'sf', opacity: 0.5, tintColor: { r: 220, g: 40, b: 40, a: 255 }, zIndex: 10 }]);
+      await am.updateMarkers([{ markerId: 'sf', opacity: 1, tintColor: null, zIndex: 0 }]);
+      return 'ok';
+    });
+
+    await step('dashed + geodesic polyline', async () => {
+      // A great-circle SF→NYC line, dashed (0.7.0). Geodesic curvature is visible
+      // over this distance where a straight screen line would not be.
+      const ids = await am.addPolylines([
+        {
+          path: [center, { lat: 40.7128, lng: -74.006 }],
+          strokeColor: '#f59e0b',
+          strokeWeight: 3,
+          lineDashPattern: [8, 4],
+          geodesic: true,
+        },
+      ]);
+      overlayIds = [...overlayIds, ...ids];
+      return `${ids.length} id (SF→NYC)`;
+    });
+
+    await step('clustering toggle', async () => {
+      // The SF trio clusters from create; toggle off and back on with a min size (0.6.0).
+      await am.disableClustering();
+      await am.enableClustering(2);
+      return 'off → on (min 2)';
+    });
+
+    await step('selectMarker + deselectMarker', async () => {
+      // Programmatically open the standalone pin's info window, then close it (0.7.0).
+      await am.selectMarker('info-demo');
+      await am.deselectMarker();
+      return 'ok';
+    });
+
+    await step('setCameraBoundary', async () => {
+      // Restrict panning to the marker box, then clear the restriction (0.7.0).
+      await am.setCameraBoundary(markerBounds());
+      await am.setCameraBoundary(null);
+      return 'set → clear';
+    });
+
+    await step('buildings toggle', async () => {
+      await am.setBuildingsEnabled(false);
+      await am.setBuildingsEnabled(true);
+      return 'off → on';
+    });
+
+    await step('user tracking', async () => {
+      // Show the native recenter/follow button; 'follow' needs location permission
+      // to actually move the camera but is harmless without it (0.7.0).
+      await am.setUserTrackingButtonVisible(true);
+      await am.setUserTrackingMode('follow');
+      await am.setUserTrackingMode('none');
+      return 'button shown; follow → none';
     });
 
     await step('takeSnapshot', async () => {
@@ -338,12 +420,26 @@
   async function myLocation() {
     if (!appleMap) return;
     try {
-      // Harmless without permission; to actually show the blue dot the app's
-      // Info.plist needs NSLocationWhenInUseUsageDescription.
+      // Prompt for location permission (0.5.6), then show the blue dot. The app's
+      // Info.plist still needs NSLocationWhenInUseUsageDescription for the prompt.
+      const status = await requestPermissions();
       await appleMap.enableCurrentLocation(true);
-      note = 'current location enabled';
+      note = `current location enabled (permission: ${status.location})`;
     } catch (err) {
       note = `enableCurrentLocation failed: ${errMsg(err)}`;
+    }
+  }
+
+  // Follow the device location, and show the native recenter/follow button (0.7.0).
+  async function trackMe() {
+    if (!appleMap) return;
+    try {
+      await requestPermissions();
+      await appleMap.setUserTrackingButtonVisible(true);
+      await appleMap.setUserTrackingMode('follow');
+      note = 'tracking: follow';
+    } catch (err) {
+      note = `setUserTrackingMode failed: ${errMsg(err)}`;
     }
   }
 
@@ -490,6 +586,22 @@
           note = `drag end @ ${data.latitude.toFixed(3)},${data.longitude.toFixed(3)}`;
         });
 
+        // Overlay-tap listeners (0.6.0) — fire on the overlays the smoke run adds.
+        // Apple now matches Google's overlay-click events.
+        await appleMap.setOnPolylineClickListener((data) => {
+          note = `polyline tapped ${data.polylineId.slice(0, 8)}…`;
+        });
+        await appleMap.setOnPolygonClickListener((data) => {
+          note = `polygon tapped ${data.polygonId.slice(0, 8)}…`;
+        });
+        await appleMap.setOnCircleClickListener((data) => {
+          note = `circle tapped ${data.circleId.slice(0, 8)}…`;
+        });
+        // Tap on the blue user-location dot (0.6.0).
+        await appleMap.setOnMyLocationClickListener((data) => {
+          note = `my location tapped @ ${data.latitude.toFixed(3)},${data.longitude.toFixed(3)}`;
+        });
+
         // Kick off the automatic smoke sequence.
         await runAppleSmokeSequence(appleMap);
       } else {
@@ -594,6 +706,7 @@
           <button onclick={fitBoundsButton}>Fit bounds</button>
           <button onclick={clearOverlays} disabled={overlayIds.length === 0}>Clear overlays</button>
           <button onclick={myLocation}>My location</button>
+          <button onclick={trackMe}>Track</button>
         {:else}
           <button onclick={gToggleMapType}>{satellite ? 'Standard' : 'Satellite'}</button>
           <button onclick={gToggleTraffic}>{traffic ? 'Traffic off' : 'Traffic'}</button>
