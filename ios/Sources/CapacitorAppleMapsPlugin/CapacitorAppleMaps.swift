@@ -284,8 +284,8 @@ public class Map: NSObject, UIGestureRecognizerDelegate {
                 // breadcrumb so that failure is diagnosable from the console
                 // instead of a mystery. onMapReady still fires below, as before.
                 CAPLog.print("[AppleMaps] getTargetContainer found no container to mount into "
-                    + "(ref=\(self.config.width)x\(self.config.height)); map will not render. "
-                    + "Likely a WebKit view-tree change — inspect the WKWebView's scroll views.")
+                                + "(ref=\(self.config.width)x\(self.config.height)); map will not render. "
+                                + "Likely a WebKit view-tree change — inspect the WKWebView's scroll views.")
             }
 
             self.delegate?.notifyListeners("onMapReady", data: ["mapId": self.id])

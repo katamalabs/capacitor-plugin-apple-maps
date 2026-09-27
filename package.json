@@ -45,7 +45,9 @@
     "verify": "npm run verify:ios && npm run verify:web",
     "verify:ios": "xcodebuild -scheme CapacitorPluginAppleMaps -destination generic/platform=iOS",
     "verify:web": "npm run build",
-    "test": "npm run test:ios",
+    "test": "npm run test:web && npm run test:ios",
+    "test:web": "vitest run",
+    "test:web:watch": "vitest",
     "test:ios": "bash scripts/test-ios.sh",
     "lint": "npm run eslint && npm run prettier -- --check && npm run swiftlint -- lint",
     "fmt": "npm run eslint -- --fix && npm run prettier -- --write && npm run swiftlint -- --fix --format",
@@ -77,7 +79,8 @@
     "rimraf": "^6.1.0",
     "rollup": "^4.53.2",
     "swiftlint": "^2.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.2"
   },
   "peerDependencies": {
     "@capacitor/core": ">=8.0.0"

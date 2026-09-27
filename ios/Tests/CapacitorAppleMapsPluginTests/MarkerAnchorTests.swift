@@ -47,4 +47,30 @@ class MarkerAnchorTests: XCTestCase {
         // No icon fields present → nothing changed, so no re-render is requested.
         XCTAssertFalse(marker.applyIconUpdates(from: ["title": "unrelated"] as JSObject))
     }
+
+    func testApplyIconUpdatesUrlAndSize() {
+        let marker = AppleMapMarker()
+
+        // A url change is applied and reported (so the caller re-renders).
+        XCTAssertTrue(marker.applyIconUpdates(from: ["iconUrl": "pin.png"] as JSObject))
+        XCTAssertEqual(marker.iconUrl, "pin.png")
+
+        // A present iconUrl of null clears it (and still reports a change).
+        XCTAssertTrue(marker.applyIconUpdates(from: ["iconUrl": NSNull()] as JSObject))
+        XCTAssertNil(marker.iconUrl)
+
+        // A size change is applied and reported.
+        XCTAssertTrue(marker.applyIconUpdates(from: ["iconSize": ["width": 30.0, "height": 40.0] as JSObject]))
+        XCTAssertEqual(marker.iconSize, CGSize(width: 30, height: 40))
+    }
+
+    func testParseSizeValidAndMalformed() {
+        XCTAssertEqual(
+            AppleMapMarker.parseSize(["width": 12.0, "height": 24.0] as JSObject),
+            CGSize(width: 12, height: 24)
+        )
+        // Missing a dimension, wrong type, or absent → nil (never half-applied).
+        XCTAssertNil(AppleMapMarker.parseSize(["width": 12.0] as JSObject))
+        XCTAssertNil(AppleMapMarker.parseSize(nil))
+    }
 }

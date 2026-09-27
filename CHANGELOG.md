@@ -33,6 +33,13 @@ Parity additions to close gaps with `@capacitor/google-maps`.
   total marker count before clustering applies (MapKit has no per-cluster minimum,
   so it is evaluated as annotations are rendered); defaults to `2`.
 
+### Internal
+
+- Expanded the test suite: headless `Map` state tests (marker/overlay/clustering
+  bookkeeping and the new fields, exercised against a real off-screen `MKMapView`)
+  and a Vitest setup for the TypeScript layer covering the `fitBounds` bounding-box
+  math (extracted to `src/geometry.ts`). `npm test` now runs web and iOS tests.
+
 ## [0.5.6]
 
 ### Added

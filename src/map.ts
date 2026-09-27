@@ -29,6 +29,7 @@ import type {
   Polyline,
   PolylineClickCallbackData,
 } from './definitions';
+import { boundsForCoordinates } from './geometry';
 import { CapacitorAppleMaps } from './implementation';
 
 export interface CreateMapArgs {
@@ -255,33 +256,8 @@ export class AppleMap {
    * hand — the common path after {@link addMarkers} to frame every pin.
    */
   async fitBounds(target: LatLngBounds | LatLng[], padding?: number, animate = true): Promise<void> {
-    const bounds = Array.isArray(target) ? AppleMap.boundsForCoordinates(target) : target;
+    const bounds = Array.isArray(target) ? boundsForCoordinates(target) : target;
     return CapacitorAppleMaps.fitBounds({ id: this.id, bounds, padding, animate });
-  }
-
-  /**
-   * The smallest {@link LatLngBounds} enclosing every coordinate. Throws on an
-   * empty list, since there is nothing to frame.
-   */
-  private static boundsForCoordinates(coordinates: LatLng[]): LatLngBounds {
-    if (coordinates.length === 0) {
-      throw new Error('fitBounds: coordinates array is empty');
-    }
-    let south = coordinates[0].lat;
-    let north = coordinates[0].lat;
-    let west = coordinates[0].lng;
-    let east = coordinates[0].lng;
-    for (const { lat, lng } of coordinates) {
-      if (lat < south) south = lat;
-      if (lat > north) north = lat;
-      if (lng < west) west = lng;
-      if (lng > east) east = lng;
-    }
-    return {
-      southwest: { lat: south, lng: west },
-      northeast: { lat: north, lng: east },
-      center: { lat: (south + north) / 2, lng: (west + east) / 2 },
-    };
   }
 
   async addMarkers(markers: Marker[]): Promise<string[]> {
