@@ -1,10 +1,34 @@
-import type { GeocodeResult, SearchCompletion, SearchRegion, SearchResult, SearchResultType } from './definitions';
+import type {
+  GeocodeResult,
+  PermissionStatus,
+  SearchCompletion,
+  SearchRegion,
+  SearchResult,
+  SearchResultType,
+} from './definitions';
 import { CapacitorAppleMaps } from './implementation';
 
 export * from './definitions';
 export { CapacitorAppleMaps } from './implementation';
 export { AppleMap } from './map';
 export type { CreateMapArgs } from './map';
+
+/**
+ * Current location-permission status without prompting. Location permission
+ * gates the blue user-location dot ({@link AppleMap.enableCurrentLocation}).
+ */
+export function checkPermissions(): Promise<PermissionStatus> {
+  return CapacitorAppleMaps.checkPermissions();
+}
+
+/**
+ * Prompt for location permission if it has not been decided yet (iOS prompts
+ * only once), then resolve with the resulting status. The host app must declare
+ * `NSLocationWhenInUseUsageDescription` in its Info.plist.
+ */
+export function requestPermissions(): Promise<PermissionStatus> {
+  return CapacitorAppleMaps.requestPermissions();
+}
 
 /**
  * Native place autocomplete (iOS, `MKLocalSearchCompleter`). No API key needed.

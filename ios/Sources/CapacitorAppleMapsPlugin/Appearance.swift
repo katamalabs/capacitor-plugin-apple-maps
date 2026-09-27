@@ -113,11 +113,11 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func setMapType(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         guard let type = call.getString("mapType") else {
-            call.reject("mapType is required")
+            call.reject("mapType is required", PluginError.invalidArgument)
             return
         }
         map.setMapType(type)
@@ -126,7 +126,7 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func enableCurrentLocation(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         map.setCurrentLocation(call.getBool("enabled", true))
@@ -135,7 +135,7 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func setTrafficEnabled(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         map.setTraffic(call.getBool("enabled", true))
@@ -144,7 +144,7 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func setPointsOfInterestEnabled(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         map.setPointsOfInterest(call.getBool("enabled", true))
@@ -153,7 +153,7 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func setCompassEnabled(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         map.setCompass(call.getBool("enabled", true))
@@ -162,7 +162,7 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func setScaleEnabled(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         map.setScale(call.getBool("enabled", true))
@@ -171,7 +171,7 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func setColorScheme(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         map.setColorScheme(call.getString("colorScheme") ?? "default")
@@ -180,7 +180,7 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func setGestures(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         let gestures = call.getObject("gestures") ?? [:]
@@ -195,7 +195,7 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func setPadding(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         map.setPadding(AppleMapConfig.parsePadding(call.getObject("padding")))

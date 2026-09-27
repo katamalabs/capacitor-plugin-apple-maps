@@ -278,11 +278,11 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func addPolylines(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         guard let objs = call.getArray("polylines") as? [JSObject] else {
-            call.reject("polylines array is required")
+            call.reject("polylines array is required", PluginError.invalidArgument)
             return
         }
         call.resolve(["ids": map.addPolylines(objs)])
@@ -290,11 +290,11 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func addPolygons(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         guard let objs = call.getArray("polygons") as? [JSObject] else {
-            call.reject("polygons array is required")
+            call.reject("polygons array is required", PluginError.invalidArgument)
             return
         }
         call.resolve(["ids": map.addPolygons(objs)])
@@ -302,11 +302,11 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func addCircles(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         guard let objs = call.getArray("circles") as? [JSObject] else {
-            call.reject("circles array is required")
+            call.reject("circles array is required", PluginError.invalidArgument)
             return
         }
         call.resolve(["ids": map.addCircles(objs)])
@@ -314,11 +314,11 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func removeOverlays(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         guard let ids = call.getArray("ids") as? [String] else {
-            call.reject("ids array is required")
+            call.reject("ids array is required", PluginError.invalidArgument)
             return
         }
         map.removeOverlays(ids)

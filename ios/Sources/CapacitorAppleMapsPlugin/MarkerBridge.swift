@@ -12,11 +12,11 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func addMarkers(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         guard let markerObjs = call.getArray("markers") as? [JSObject] else {
-            call.reject("markers array is required")
+            call.reject("markers array is required", PluginError.invalidArgument)
             return
         }
         let ids = map.addMarkers(markerObjs)
@@ -25,15 +25,15 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func addMarker(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         guard let markerObj = call.getObject("marker") else {
-            call.reject("marker is required")
+            call.reject("marker is required", PluginError.invalidArgument)
             return
         }
         guard let markerId = map.addMarkers([markerObj]).first else {
-            call.reject("marker is missing or malformed")
+            call.reject("marker is missing or malformed", PluginError.invalidArgument)
             return
         }
         call.resolve(["id": markerId])
@@ -41,11 +41,11 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func updateMarkers(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         guard let markerObjs = call.getArray("markers") as? [JSObject] else {
-            call.reject("markers array is required")
+            call.reject("markers array is required", PluginError.invalidArgument)
             return
         }
         map.updateMarkers(markerObjs)
@@ -54,11 +54,11 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func removeMarkers(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         guard let ids = call.getArray("markerIds") as? [String] else {
-            call.reject("markerIds array is required")
+            call.reject("markerIds array is required", PluginError.invalidArgument)
             return
         }
         map.removeMarkers(ids)
@@ -67,11 +67,11 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func removeMarker(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         guard let markerId = call.getString("markerId") else {
-            call.reject("markerId is required")
+            call.reject("markerId is required", PluginError.invalidArgument)
             return
         }
         map.removeMarkers([markerId])
@@ -80,7 +80,7 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func enableClustering(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         map.enableClustering()
@@ -89,7 +89,7 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func disableClustering(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         map.disableClustering()

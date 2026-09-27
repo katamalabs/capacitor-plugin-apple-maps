@@ -46,19 +46,25 @@ public class CapacitorAppleMapsPlugin: CAPPlugin, CAPBridgedPlugin, MKMapViewDel
         CAPPluginMethod(name: "geocode", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "onResize", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "onDisplay", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "onScroll", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "onScroll", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "checkPermissions", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "requestPermissions", returnType: CAPPluginReturnPromise)
     ]
-
-    private let clusterReuseId = "appleMapCluster"
-    // Markers with an icon and markers without one use different view classes
-    // (MKAnnotationView vs MKMarkerAnnotationView) and so must not share a reuse
-    // identifier — MapKit would hand back the wrong class from the reuse pool.
-    private let markerReuseId = "appleMapMarker"
-    private let markerDefaultReuseId = "appleMapMarkerDefault"
 
     var maps = [String: Map]()
     private let searchService = SearchService()
     private let geocodeService = GeocodeService()
+
+    // MARK: - Location permission
+    //
+    // Backing state for the `location` permission alias. The check/request
+    // implementations and the CLLocationManagerDelegate callback live in
+    // Permissions.swift. The manager is created lazily on first use so a plugin
+    // that never touches location never instantiates one.
+    var locationManager: CLLocationManager?
+    /// Callback id of the in-flight `requestPermissions` call, held while the
+    /// system prompt is up so the delegate can resolve it once the user answers.
+    var permissionCallID: String?
 
     // MARK: - App lifecycle
 
@@ -84,11 +90,11 @@ public class CapacitorAppleMapsPlugin: CAPPlugin, CAPBridgedPlugin, MKMapViewDel
 
     @objc func create(_ call: CAPPluginCall) {
         guard let id = call.getString("id") else {
-            call.reject("id is required")
+            call.reject("id is required", PluginError.invalidArgument)
             return
         }
         guard let configObj = call.getObject("config") else {
-            call.reject("config is required")
+            call.reject("config is required", PluginError.invalidArgument)
             return
         }
         let forceCreate = call.getBool("forceCreate", false)
@@ -109,13 +115,13 @@ public class CapacitorAppleMapsPlugin: CAPPlugin, CAPBridgedPlugin, MKMapViewDel
             }
             call.resolve()
         } catch {
-            call.reject(error.localizedDescription)
+            call.reject(error.localizedDescription, PluginError.operationFailed, error)
         }
     }
 
     @objc func destroy(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps.removeValue(forKey: id) else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         map.destroy()
@@ -126,29 +132,18 @@ public class CapacitorAppleMapsPlugin: CAPPlugin, CAPBridgedPlugin, MKMapViewDel
 
     @objc func setCamera(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
-        let configObj = call.getObject("config") ?? [:]
-
-        var coordinate: CLLocationCoordinate2D?
-        if let coordObj = configObj["coordinate"] as? JSObject,
-           let lat = coordObj["lat"] as? Double,
-           let lng = coordObj["lng"] as? Double {
-            coordinate = CLLocationCoordinate2D(latitude: lat, longitude: lng)
-        }
-        let zoom = configObj["zoom"] as? Double
-        let animate = configObj["animate"] as? Bool ?? false
-
         runOnMainSync {
-            map.setCameraInternal(coordinate: coordinate, zoom: zoom, animate: animate)
+            map.setCamera(from: call.getObject("config") ?? [:])
         }
         call.resolve()
     }
 
     @objc func getMapBounds(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         runOnMainSync {
@@ -158,7 +153,7 @@ public class CapacitorAppleMapsPlugin: CAPPlugin, CAPBridgedPlugin, MKMapViewDel
 
     @objc func getCameraPosition(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         runOnMainSync {
@@ -168,7 +163,7 @@ public class CapacitorAppleMapsPlugin: CAPPlugin, CAPBridgedPlugin, MKMapViewDel
 
     @objc func fitBounds(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         guard let boundsObj = call.getObject("bounds"),
@@ -176,7 +171,7 @@ public class CapacitorAppleMapsPlugin: CAPPlugin, CAPBridgedPlugin, MKMapViewDel
               let swLat = swObj["lat"] as? Double, let swLng = swObj["lng"] as? Double,
               let neObj = boundsObj["northeast"] as? JSObject,
               let neLat = neObj["lat"] as? Double, let neLng = neObj["lng"] as? Double else {
-            call.reject("bounds with southwest and northeast is required")
+            call.reject("bounds with southwest and northeast is required", PluginError.invalidArgument)
             return
         }
         let padding = call.getDouble("padding") ?? 0
@@ -225,66 +220,13 @@ public class CapacitorAppleMapsPlugin: CAPPlugin, CAPBridgedPlugin, MKMapViewDel
     // SwiftLint's body-length budget.
 
     public func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-        if annotation is MKUserLocation { return nil }
-
-        if let cluster = annotation as? MKClusterAnnotation {
-            let view = (mapView.dequeueReusableAnnotationView(withIdentifier: clusterReuseId) as? MKMarkerAnnotationView)
-                ?? MKMarkerAnnotationView(annotation: cluster, reuseIdentifier: clusterReuseId)
-            view.annotation = cluster
-            view.canShowCallout = false
-            view.glyphText = "\(cluster.memberAnnotations.count)"
-            view.markerTintColor = .systemGray
-            view.displayPriority = .required
-            return view
-        }
-
-        guard let marker = annotation as? AppleMapMarker, let map = findMap(for: mapView) else { return nil }
-
-        // No icon → MapKit's native pin (MKMarkerAnnotationView), mirroring how
-        // @capacitor/google-maps renders a default marker when the host supplies
-        // none; a bare image-less MKAnnotationView would be invisible. The two
-        // view classes can't share a reuse id.
-        let hasIcon = !(marker.iconUrl?.isEmpty ?? true)
-        let view: MKAnnotationView
-        if hasIcon {
-            view = mapView.dequeueReusableAnnotationView(withIdentifier: markerReuseId)
-                ?? MKAnnotationView(annotation: marker, reuseIdentifier: markerReuseId)
-        } else {
-            view = mapView.dequeueReusableAnnotationView(withIdentifier: markerDefaultReuseId) as? MKMarkerAnnotationView
-                ?? MKMarkerAnnotationView(annotation: marker, reuseIdentifier: markerDefaultReuseId)
-        }
-        view.annotation = marker
-        view.clusteringIdentifier = map.clusteringEnabled ? clusterReuseId : nil
-        view.displayPriority = .required
-        // Info windows are drawn as our own bubble (see Callout.swift), so the
-        // native callout stays off. When info windows are on, hide the inline
-        // title/subtitle labels too, so the bubble is the sole info display.
-        if let markerView = view as? MKMarkerAnnotationView {
-            let visibility: MKFeatureVisibility = map.config.showInfoWindows ? .hidden : .adaptive
-            markerView.titleVisibility = visibility
-            markerView.subtitleVisibility = visibility
-        }
-
-        // Reset first: a recycled image view must not keep a previous marker's
-        // icon while an `https:` icon for this one is still downloading (the
-        // async completion in `annotationImage` sets it on the live view).
-        view.image = nil
-        view.centerOffset = .zero
-        if hasIcon, let image = map.annotationImage(for: marker, in: mapView) {
-            view.image = image
-            view.centerOffset = marker.centerOffset(for: image.size)
-        }
-        // The native callout stays off - we render our own bubble (Callout.swift),
-        // because MapKit's callout doesn't show through the web-view compositing.
-        view.canShowCallout = false
-        return view
+        findMap(for: mapView)?.annotationView(for: annotation, in: mapView)
     }
 
     public func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
         guard let map = findMap(for: mapView) else { return }
 
         if let cluster = view.annotation as? MKClusterAnnotation {
-            mapView.deselectAnnotation(cluster, animated: false)
             notifyListeners("onClusterClick", data: [
                 "mapId": map.id,
                 "latitude": cluster.coordinate.latitude,
@@ -292,14 +234,7 @@ public class CapacitorAppleMapsPlugin: CAPPlugin, CAPBridgedPlugin, MKMapViewDel
                 "count": cluster.memberAnnotations.count,
                 "markerIds": cluster.memberAnnotations.compactMap { ($0 as? AppleMapMarker)?.markerId }
             ])
-            // Expand the cluster by zooming to fit its members.
-            var rect = MKMapRect.null
-            for member in cluster.memberAnnotations {
-                let point = MKMapPoint(member.coordinate)
-                rect = rect.union(MKMapRect(x: point.x, y: point.y, width: 0.01, height: 0.01))
-            }
-            let padding = UIEdgeInsets(top: 60, left: 60, bottom: 60, right: 60)
-            mapView.setVisibleMapRect(rect, edgePadding: padding, animated: true)
+            map.expandCluster(cluster, in: mapView)
             return
         }
 
@@ -311,16 +246,7 @@ public class CapacitorAppleMapsPlugin: CAPPlugin, CAPBridgedPlugin, MKMapViewDel
             "longitude": marker.coordinate.longitude,
             "title": marker.title ?? ""
         ])
-
-        // Never keep MapKit's selected (enlarged) state; deselect right away so the
-        // pin stays its normal size, then show our own info-window bubble instead
-        // (the native callout doesn't render through the web-view compositing).
-        mapView.deselectAnnotation(marker, animated: false)
-        if map.config.showInfoWindows && !(marker.title?.isEmpty ?? true) {
-            map.showCallout(for: marker)
-        } else {
-            map.dismissCallout()
-        }
+        map.handleMarkerSelection(marker)
     }
 
     // MARK: - Helpers

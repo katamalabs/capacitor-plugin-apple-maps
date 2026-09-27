@@ -138,7 +138,7 @@ extension Map {
 extension CapacitorAppleMapsPlugin {
     @objc func takeSnapshot(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         map.takeSnapshot { result in
@@ -146,7 +146,7 @@ extension CapacitorAppleMapsPlugin {
             case .success(let image):
                 call.resolve(["image": image])
             case .failure(let error):
-                call.reject(error.localizedDescription)
+                call.reject(error.localizedDescription, PluginError.operationFailed, error)
             }
         }
     }

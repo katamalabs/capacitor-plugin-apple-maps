@@ -1,6 +1,6 @@
 import { WebPlugin } from '@capacitor/core';
 
-import type { CapacitorAppleMapsPlugin, LatLngBounds } from './definitions';
+import type { CapacitorAppleMapsPlugin, LatLngBounds, PermissionStatus } from './definitions';
 
 /**
  * Web fallback. Apple Maps is a native MapKit feature with no web surface here,
@@ -10,6 +10,14 @@ import type { CapacitorAppleMapsPlugin, LatLngBounds } from './definitions';
 export class CapacitorAppleMapsWeb extends WebPlugin implements CapacitorAppleMapsPlugin {
   private notAvailable(): never {
     throw this.unavailable('Apple Maps is only available on iOS.');
+  }
+
+  async checkPermissions(): Promise<PermissionStatus> {
+    this.notAvailable();
+  }
+
+  async requestPermissions(): Promise<PermissionStatus> {
+    this.notAvailable();
   }
 
   async create(): Promise<void> {

@@ -5,6 +5,41 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.6]
+
+### Added
+
+- **`checkPermissions()` and `requestPermissions()`.** `enableCurrentLocation`
+  (the blue user-location dot) needs location permission, but the plugin left
+  obtaining it entirely to the host app and exposed no way to query or prompt for
+  it - a departure from the Capacitor permissions pattern. Both methods are now
+  implemented natively via `CLLocationManager` and return a `PermissionStatus`
+  keyed by a single `location` alias (`prompt` / `denied` / `granted`).
+  `requestPermissions` shows the system prompt when the status is undetermined and
+  resolves once the user answers; if permission was already decided it resolves
+  immediately (iOS only prompts once). The host app must still declare
+  `NSLocationWhenInUseUsageDescription` in its Info.plist - without it iOS treats
+  access as denied and the prompt never appears. On web both methods reject with
+  `unavailable`, like the rest of the web fallback.
+
+### Changed
+
+- **Rejections now carry a stable error code.** Native failures previously
+  rejected with a human-readable message only. Each `reject` now also passes a
+  machine-readable code - `MAP_NOT_FOUND`, `INVALID_ARGUMENT` or
+  `OPERATION_FAILED` - surfaced as the `code` property of the rejected error, so
+  host apps can branch on it instead of matching message strings. The two runtime
+  failures (`create`, `takeSnapshot`) additionally forward the underlying `Error`.
+  Messages are unchanged.
+
+### Internal
+
+- Aligned the podspec `swift_version` (`5.1` → `5.9`) with `Package.swift`, and
+  moved the camera-config parsing and the `MKMapViewDelegate` annotation-view /
+  cluster / selection logic out of the plugin bridge class onto the `Map`
+  implementation, leaving the delegate methods as thin wrappers. No behavioural
+  change; the XCTest suite is unaffected.
+
 ## [0.5.5]
 
 ### Added

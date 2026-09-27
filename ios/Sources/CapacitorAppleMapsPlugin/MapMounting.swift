@@ -118,11 +118,11 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func onResize(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         guard let boundsObj = call.getObject("mapBounds") else {
-            call.reject("mapBounds is required")
+            call.reject("mapBounds is required", PluginError.invalidArgument)
             return
         }
         map.updateRender(mapBounds: CGRect.fromJSObject(boundsObj))
@@ -131,11 +131,11 @@ extension CapacitorAppleMapsPlugin {
 
     @objc func onDisplay(_ call: CAPPluginCall) {
         guard let id = call.getString("id"), let map = maps[id] else {
-            call.reject("map not found")
+            call.reject("map not found", PluginError.mapNotFound)
             return
         }
         guard let boundsObj = call.getObject("mapBounds") else {
-            call.reject("mapBounds is required")
+            call.reject("mapBounds is required", PluginError.invalidArgument)
             return
         }
         map.rebindTargetContainer(mapBounds: CGRect.fromJSObject(boundsObj))

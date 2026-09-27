@@ -170,6 +170,8 @@ const map =
 
 <docgen-index>
 
+* [`checkPermissions()`](#checkpermissions)
+* [`requestPermissions()`](#requestpermissions)
 * [`create(...)`](#create)
 * [`destroy(...)`](#destroy)
 * [`setCamera(...)`](#setcamera)
@@ -226,6 +228,36 @@ const map =
 
 Low-level bridge to the native MapKit implementation. Most callers should use
 the {@link AppleMap} wrapper instead of these methods directly.
+
+### checkPermissions()
+
+```typescript
+checkPermissions() => Promise<PermissionStatus>
+```
+
+Current location-permission status without prompting. See
+{@link enableCurrentLocation}.
+
+**Returns:** <code>Promise&lt;<a href="#permissionstatus">PermissionStatus</a>&gt;</code>
+
+--------------------
+
+
+### requestPermissions()
+
+```typescript
+requestPermissions() => Promise<PermissionStatus>
+```
+
+Prompt for location permission if it has not been decided yet, then resolve
+with the resulting status. If permission was already granted or denied this
+resolves immediately without prompting (iOS only prompts once). Requires the
+host app's `NSLocationWhenInUseUsageDescription` Info.plist key.
+
+**Returns:** <code>Promise&lt;<a href="#permissionstatus">PermissionStatus</a>&gt;</code>
+
+--------------------
+
 
 ### create(...)
 
@@ -496,9 +528,10 @@ Set the base map imagery.
 enableCurrentLocation(options: { id: string; enabled: boolean; }) => Promise<void>
 ```
 
-Show or hide the blue user-location dot. The host app is responsible for the
-`NSLocationWhenInUseUsageDescription` Info.plist key and for prompting the
-user for location permission; without it MapKit shows nothing.
+Show or hide the blue user-location dot. Call {@link requestPermissions}
+first to obtain location permission, and declare the
+`NSLocationWhenInUseUsageDescription` Info.plist key in the host app; without
+granted permission MapKit shows nothing.
 
 | Param         | Type                                           |
 | ------------- | ---------------------------------------------- |
@@ -960,6 +993,18 @@ addListener(eventName: 'onMarkerDragEnd', listenerFunc: (data: MarkerDragCallbac
 ### Interfaces
 
 
+#### PermissionStatus
+
+Permission status for the plugin, keyed by alias. The only alias is
+`location`, which gates the blue user-location dot ({@link
+CapacitorAppleMapsPlugin.enableCurrentLocation}). The host app must also declare
+`NSLocationWhenInUseUsageDescription` in its Info.plist for the prompt to appear.
+
+| Prop           | Type                                                        |
+| -------------- | ----------------------------------------------------------- |
+| **`location`** | <code><a href="#permissionstate">PermissionState</a></code> |
+
+
 #### AppleMapConfig
 
 Initial map configuration. The `width`/`height`/`x`/`y`/`devicePixelRatio`
@@ -1282,6 +1327,11 @@ continuously as it moves, and `onMarkerDragEnd` fires once on release.
 
 
 ### Type Aliases
+
+
+#### PermissionState
+
+<code>'prompt' | 'prompt-with-rationale' | 'granted' | 'denied'</code>
 
 
 #### MapType

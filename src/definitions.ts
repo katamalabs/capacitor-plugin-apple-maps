@@ -1,4 +1,14 @@
-import type { PluginListenerHandle } from '@capacitor/core';
+import type { PermissionState, PluginListenerHandle } from '@capacitor/core';
+
+/**
+ * Permission status for the plugin, keyed by alias. The only alias is
+ * `location`, which gates the blue user-location dot ({@link
+ * CapacitorAppleMapsPlugin.enableCurrentLocation}). The host app must also declare
+ * `NSLocationWhenInUseUsageDescription` in its Info.plist for the prompt to appear.
+ */
+export interface PermissionStatus {
+  location: PermissionState;
+}
 
 /**
  * A geographic coordinate. Field names match `@capacitor/google-maps` so the
@@ -363,6 +373,18 @@ export interface GeocodeResult {
  * the {@link AppleMap} wrapper instead of these methods directly.
  */
 export interface CapacitorAppleMapsPlugin {
+  /**
+   * Current location-permission status without prompting. See
+   * {@link enableCurrentLocation}.
+   */
+  checkPermissions(): Promise<PermissionStatus>;
+  /**
+   * Prompt for location permission if it has not been decided yet, then resolve
+   * with the resulting status. If permission was already granted or denied this
+   * resolves immediately without prompting (iOS only prompts once). Requires the
+   * host app's `NSLocationWhenInUseUsageDescription` Info.plist key.
+   */
+  requestPermissions(): Promise<PermissionStatus>;
   create(options: { id: string; config: AppleMapConfig; element?: unknown; forceCreate?: boolean }): Promise<void>;
   destroy(options: { id: string }): Promise<void>;
   setCamera(options: { id: string; config: CameraConfig }): Promise<void>;
@@ -394,9 +416,10 @@ export interface CapacitorAppleMapsPlugin {
   /** Set the base map imagery. */
   setMapType(options: { id: string; mapType: MapType }): Promise<void>;
   /**
-   * Show or hide the blue user-location dot. The host app is responsible for the
-   * `NSLocationWhenInUseUsageDescription` Info.plist key and for prompting the
-   * user for location permission; without it MapKit shows nothing.
+   * Show or hide the blue user-location dot. Call {@link requestPermissions}
+   * first to obtain location permission, and declare the
+   * `NSLocationWhenInUseUsageDescription` Info.plist key in the host app; without
+   * granted permission MapKit shows nothing.
    */
   enableCurrentLocation(options: { id: string; enabled: boolean }): Promise<void>;
 
