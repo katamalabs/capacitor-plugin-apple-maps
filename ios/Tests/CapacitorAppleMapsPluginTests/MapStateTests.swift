@@ -133,6 +133,28 @@ final class MapStateTests: XCTestCase {
         XCTAssertEqual(map.clusterMinSize, 2)
     }
 
+    func testClusteringDrivesAnnotationViewPriority() throws {
+        let map = try makeMap()
+        _ = map.addMarkers([
+            ["coordinate": ["lat": 1.0, "lng": 1.0] as JSObject],
+            ["coordinate": ["lat": 1.0, "lng": 1.0] as JSObject]
+        ])
+        let marker = try XCTUnwrap(map.markers.values.first)
+
+        // Clustering off: no clustering id, and `.required` so the pin is never
+        // hidden by decluttering.
+        let unclustered = try XCTUnwrap(map.annotationView(for: marker, in: map.mapView))
+        XCTAssertNil(unclustered.clusteringIdentifier)
+        XCTAssertEqual(unclustered.displayPriority, .required)
+
+        // Clustering on: a clustering id, and a below-required priority so MapKit is
+        // actually allowed to collapse overlapping markers into a bubble.
+        map.enableClustering()
+        let clustered = try XCTUnwrap(map.annotationView(for: marker, in: map.mapView))
+        XCTAssertEqual(clustered.clusteringIdentifier, Map.clusterReuseId)
+        XCTAssertEqual(clustered.displayPriority, .defaultHigh)
+    }
+
     func testGeodesicPolylineUsesGeodesicClass() throws {
         let map = try makeMap()
         let ids = map.addPolylines([[

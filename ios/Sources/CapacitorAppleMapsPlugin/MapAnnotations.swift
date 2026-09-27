@@ -65,7 +65,12 @@ extension Map {
         }
         view.annotation = marker
         view.clusteringIdentifier = shouldCluster ? Map.clusterReuseId : nil
-        view.displayPriority = .required
+        // `.required` opts an annotation out of decluttering — which includes
+        // clustering — so a required marker will never collapse into a bubble no
+        // matter its clusteringIdentifier. When clustering is on, drop to
+        // `.defaultHigh` so overlapping markers may cluster; when it's off keep
+        // `.required` so no pin is ever silently hidden by decluttering.
+        view.displayPriority = shouldCluster ? .defaultHigh : .required
         view.alpha = marker.opacity
         view.zPriority = MKAnnotationViewZPriority(rawValue: Float(marker.zIndex))
         // Info windows are drawn as our own bubble (see Callout.swift), so the
