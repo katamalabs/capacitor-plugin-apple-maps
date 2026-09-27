@@ -24,6 +24,14 @@ class AppleMapMarker: MKPointAnnotation {
     /// map rather than `MKAnnotationView.isDraggable`, so intermediate coordinates
     /// stream to JS instead of only the drop point.
     var isDraggable = false
+    /// Marker opacity 0..1, applied to the annotation view's `alpha`. Defaults to 1.
+    var opacity: CGFloat = 1
+    /// Tint for the default MapKit pin (`MKMarkerAnnotationView.markerTintColor`).
+    /// Ignored for image markers, which carry their own colors. nil = MapKit default.
+    var tintColor: UIColor?
+    /// Draw order relative to other markers (higher draws on top), mapped to
+    /// `MKAnnotationView.zPriority`. Defaults to 0.
+    var zIndex: Double = 0
 
     /// The `MKAnnotationView.centerOffset` that lands this marker's anchor point on
     /// its coordinate, for an icon rendered at `imageSize`. A view is centred on
@@ -71,5 +79,16 @@ class AppleMapMarker: MKPointAnnotation {
               let x = obj["x"] as? Double,
               let y = obj["y"] as? Double else { return nil }
         return CGPoint(x: x, y: y)
+    }
+
+    /// A `{ r, g, b, a }` payload (each channel 0..255, `a` optional) as a
+    /// `UIColor`, or nil when absent/malformed.
+    static func parseTintColor(_ value: Any?) -> UIColor? {
+        guard let obj = value as? JSObject,
+              let red = obj["r"] as? Double,
+              let green = obj["g"] as? Double,
+              let blue = obj["b"] as? Double else { return nil }
+        let alpha = obj["a"] as? Double ?? 255
+        return UIColor(red: red / 255, green: green / 255, blue: blue / 255, alpha: alpha / 255)
     }
 }

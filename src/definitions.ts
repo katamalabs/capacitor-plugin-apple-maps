@@ -105,6 +105,18 @@ export interface MapPadding {
 export interface CameraConfig {
   coordinate?: LatLng;
   zoom?: number;
+  /**
+   * Camera heading (rotation) in degrees clockwise from true north (`0` = north
+   * up). Maps to `MKMapCamera.heading`. Left unchanged when omitted; requires the
+   * rotate gesture/`MKMapView` to keep it. Defaults to `0` on a fresh map.
+   */
+  bearing?: number;
+  /**
+   * Camera tilt in degrees from straight down (`0` = top-down; larger tilts
+   * toward the horizon for a 3D view). Maps to `MKMapCamera.pitch`. MapKit clamps
+   * the maximum tilt by zoom level. Left unchanged when omitted.
+   */
+  angle?: number;
   /** Animate the camera move. Defaults to `false` to match the host app's expectations. */
   animate?: boolean;
 }
@@ -115,6 +127,10 @@ export interface CameraPosition {
   longitude: number;
   /** Google-style zoom derived from the current region span. */
   zoom: number;
+  /** Camera heading in degrees clockwise from true north (`MKMapCamera.heading`). */
+  bearing: number;
+  /** Camera tilt in degrees from straight down (`MKMapCamera.pitch`). */
+  angle: number;
   bounds: LatLngBounds;
 }
 
@@ -165,6 +181,22 @@ export interface Marker {
    * separates into its own annotation.
    */
   draggable?: boolean;
+  /**
+   * Marker opacity, `0` (transparent) to `1` (opaque). Applies to both custom
+   * icons and the default pin (`MKAnnotationView.alpha`). Defaults to `1`.
+   */
+  opacity?: number;
+  /**
+   * Recolor the default MapKit pin (`MKMarkerAnnotationView.markerTintColor`),
+   * with each channel `0..255`. Ignored when `iconUrl` is set, since a custom
+   * image supplies its own colors.
+   */
+  tintColor?: { r: number; g: number; b: number; a: number };
+  /**
+   * Draw order relative to other markers - a higher value draws on top. Maps to
+   * `MKAnnotationView.zPriority`. Defaults to `0`.
+   */
+  zIndex?: number;
 }
 
 /**
@@ -182,6 +214,12 @@ export interface MarkerUpdate {
   iconAnchor?: { x: number; y: number } | null;
   /** Enable or disable dragging for this marker. */
   draggable?: boolean;
+  /** See {@link Marker.opacity}. */
+  opacity?: number;
+  /** See {@link Marker.tintColor}. Pass `null` to clear the tint. */
+  tintColor?: { r: number; g: number; b: number; a: number } | null;
+  /** See {@link Marker.zIndex}. */
+  zIndex?: number;
 }
 
 /** Shared stroke/fill styling for overlays. Colors are `#RRGGBB` or `#RRGGBBAA` hex. */
@@ -275,6 +313,33 @@ export interface MapClickCallbackData {
 
 /** A long-press on the map surface (not on a marker). */
 export type MapLongClickCallbackData = MapClickCallbackData;
+
+/** A tap on a polygon overlay. `polygonId` is the id returned by `addPolygons`. */
+export interface PolygonClickCallbackData {
+  mapId: string;
+  polygonId: string;
+  latitude: number;
+  longitude: number;
+}
+
+/** A tap on a polyline overlay. `polylineId` is the id returned by `addPolylines`. */
+export interface PolylineClickCallbackData {
+  mapId: string;
+  polylineId: string;
+  latitude: number;
+  longitude: number;
+}
+
+/** A tap on a circle overlay. `circleId` is the id returned by `addCircles`. */
+export interface CircleClickCallbackData {
+  mapId: string;
+  circleId: string;
+  latitude: number;
+  longitude: number;
+}
+
+/** A tap on the blue user-location dot (`onMyLocationClick`). */
+export type MyLocationClickCallbackData = MapClickCallbackData;
 
 /**
  * Fired once when the camera begins moving, before `onCameraIdle`. `isGesture`
@@ -404,7 +469,13 @@ export interface CapacitorAppleMapsPlugin {
   removeMarkers(options: { id: string; markerIds: string[] }): Promise<void>;
   /** Remove a single marker by id. Convenience over {@link removeMarkers}. */
   removeMarker(options: { id: string; markerId: string }): Promise<void>;
-  enableClustering(options: { id: string }): Promise<void>;
+  /**
+   * Enable marker clustering. `minClusterSize` is a best-effort lower bound on how
+   * many markers must be present before any clustering happens (MapKit has no
+   * per-cluster minimum, so this gates clustering on the total marker count);
+   * defaults to `2`.
+   */
+  enableClustering(options: { id: string; minClusterSize?: number }): Promise<void>;
   disableClustering(options: { id: string }): Promise<void>;
 
   addPolylines(options: { id: string; polylines: Polyline[] }): Promise<{ ids: string[] }>;
@@ -415,6 +486,8 @@ export interface CapacitorAppleMapsPlugin {
 
   /** Set the base map imagery. */
   setMapType(options: { id: string; mapType: MapType }): Promise<void>;
+  /** Read the current base map imagery. */
+  getMapType(options: { id: string }): Promise<{ mapType: MapType }>;
   /**
    * Show or hide the blue user-location dot. Call {@link requestPermissions}
    * first to obtain location permission, and declare the
@@ -525,6 +598,22 @@ export interface CapacitorAppleMapsPlugin {
   addListener(
     eventName: 'onMapLongClick',
     listenerFunc: (data: MapLongClickCallbackData) => void,
+  ): Promise<PluginListenerHandle>;
+  addListener(
+    eventName: 'onPolygonClick',
+    listenerFunc: (data: PolygonClickCallbackData) => void,
+  ): Promise<PluginListenerHandle>;
+  addListener(
+    eventName: 'onPolylineClick',
+    listenerFunc: (data: PolylineClickCallbackData) => void,
+  ): Promise<PluginListenerHandle>;
+  addListener(
+    eventName: 'onCircleClick',
+    listenerFunc: (data: CircleClickCallbackData) => void,
+  ): Promise<PluginListenerHandle>;
+  addListener(
+    eventName: 'onMyLocationClick',
+    listenerFunc: (data: MyLocationClickCallbackData) => void,
   ): Promise<PluginListenerHandle>;
   addListener(
     eventName: 'onClusterClick',

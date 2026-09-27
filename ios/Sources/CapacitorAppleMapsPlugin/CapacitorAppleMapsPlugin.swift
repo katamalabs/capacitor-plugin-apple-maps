@@ -30,6 +30,7 @@ public class CapacitorAppleMapsPlugin: CAPPlugin, CAPBridgedPlugin, MKMapViewDel
         CAPPluginMethod(name: "addCircles", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "removeOverlays", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setMapType", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getMapType", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "enableCurrentLocation", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setTrafficEnabled", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setPointsOfInterestEnabled", returnType: CAPPluginReturnPromise),
@@ -235,6 +236,17 @@ public class CapacitorAppleMapsPlugin: CAPPlugin, CAPBridgedPlugin, MKMapViewDel
                 "markerIds": cluster.memberAnnotations.compactMap { ($0 as? AppleMapMarker)?.markerId }
             ])
             map.expandCluster(cluster, in: mapView)
+            return
+        }
+
+        if view.annotation is MKUserLocation {
+            let coordinate = view.annotation?.coordinate ?? mapView.userLocation.coordinate
+            notifyListeners("onMyLocationClick", data: [
+                "mapId": map.id,
+                "latitude": coordinate.latitude,
+                "longitude": coordinate.longitude
+            ])
+            mapView.deselectAnnotation(view.annotation, animated: false)
             return
         }
 

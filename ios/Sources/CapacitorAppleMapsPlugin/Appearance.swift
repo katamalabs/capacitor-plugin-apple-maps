@@ -29,6 +29,12 @@ extension Map {
         DispatchQueue.main.async { self.mapView.mapType = Map.mapType(from: type) }
     }
 
+    /// The current base map imagery as a JS `MapType` string. Must be called on the
+    /// main thread.
+    func currentMapType() -> String {
+        Map.mapTypeString(from: mapView.mapType)
+    }
+
     func setCurrentLocation(_ enabled: Bool) {
         DispatchQueue.main.async { self.mapView.showsUserLocation = enabled }
     }
@@ -96,6 +102,18 @@ extension Map {
         }
     }
 
+    /// Inverse of `mapType(from:)` - the JS `MapType` string for an `MKMapType`.
+    static func mapTypeString(from type: MKMapType) -> String {
+        switch type {
+        case .satellite: return "satellite"
+        case .hybrid: return "hybrid"
+        case .satelliteFlyover: return "satelliteFlyover"
+        case .hybridFlyover: return "hybridFlyover"
+        case .mutedStandard: return "mutedStandard"
+        default: return "standard"
+        }
+    }
+
     /// Maps a `colorScheme` string to a `UIUserInterfaceStyle`; anything other
     /// than "light"/"dark" follows the system. Pure, so it can be unit-tested.
     static func userInterfaceStyle(from string: String) -> UIUserInterfaceStyle {
@@ -122,6 +140,16 @@ extension CapacitorAppleMapsPlugin {
         }
         map.setMapType(type)
         call.resolve()
+    }
+
+    @objc func getMapType(_ call: CAPPluginCall) {
+        guard let id = call.getString("id"), let map = maps[id] else {
+            call.reject("map not found", PluginError.mapNotFound)
+            return
+        }
+        runOnMainSync {
+            call.resolve(["mapType": map.currentMapType()])
+        }
     }
 
     @objc func enableCurrentLocation(_ call: CAPPluginCall) {

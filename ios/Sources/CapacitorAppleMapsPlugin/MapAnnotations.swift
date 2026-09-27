@@ -27,7 +27,9 @@ extension Map {
         }
         let zoom = configObj["zoom"] as? Double
         let animate = configObj["animate"] as? Bool ?? false
-        setCameraInternal(coordinate: coordinate, zoom: zoom, animate: animate)
+        let bearing = configObj["bearing"] as? Double
+        let angle = configObj["angle"] as? Double
+        setCameraInternal(coordinate: coordinate, zoom: zoom, animate: animate, bearing: bearing, pitch: angle)
     }
 
     /// Build (or recycle) the annotation view for a marker, cluster, or the user
@@ -62,8 +64,10 @@ extension Map {
                 ?? MKMarkerAnnotationView(annotation: marker, reuseIdentifier: Map.markerDefaultReuseId)
         }
         view.annotation = marker
-        view.clusteringIdentifier = clusteringEnabled ? Map.clusterReuseId : nil
+        view.clusteringIdentifier = shouldCluster ? Map.clusterReuseId : nil
         view.displayPriority = .required
+        view.alpha = marker.opacity
+        view.zPriority = MKAnnotationViewZPriority(rawValue: Float(marker.zIndex))
         // Info windows are drawn as our own bubble (see Callout.swift), so the
         // native callout stays off. When info windows are on, hide the inline
         // title/subtitle labels too, so the bubble is the sole info display.
@@ -71,6 +75,8 @@ extension Map {
             let visibility: MKFeatureVisibility = config.showInfoWindows ? .hidden : .adaptive
             markerView.titleVisibility = visibility
             markerView.subtitleVisibility = visibility
+            // Tint applies only to the default pin; image markers carry their own colors.
+            markerView.markerTintColor = marker.tintColor
         }
 
         // Reset first: a recycled image view must not keep a previous marker's

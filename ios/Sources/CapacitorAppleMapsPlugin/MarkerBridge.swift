@@ -83,7 +83,7 @@ extension CapacitorAppleMapsPlugin {
             call.reject("map not found", PluginError.mapNotFound)
             return
         }
-        map.enableClustering()
+        map.enableClustering(minClusterSize: call.getInt("minClusterSize"))
         call.resolve()
     }
 

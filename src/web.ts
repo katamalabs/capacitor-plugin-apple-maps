@@ -92,6 +92,10 @@ export class CapacitorAppleMapsWeb extends WebPlugin implements CapacitorAppleMa
     this.notAvailable();
   }
 
+  async getMapType(): Promise<never> {
+    this.notAvailable();
+  }
+
   async enableCurrentLocation(): Promise<void> {
     this.notAvailable();
   }

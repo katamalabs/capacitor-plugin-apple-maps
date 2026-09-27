@@ -167,6 +167,12 @@ public class Map: NSObject, UIGestureRecognizerDelegate {
     /// Overlay styling keyed by the overlay instance, read back in `rendererFor`.
     var overlayStyles: [ObjectIdentifier: OverlayStyle] = [:]
     private(set) var clusteringEnabled = false
+    /// Best-effort lower bound on the total marker count before clustering applies.
+    /// MapKit has no per-cluster minimum, so this gates clustering on the number of
+    /// markers present when each annotation view is built. See enableClustering.
+    var clusterMinSize = 2
+    /// Whether an annotation view should cluster right now, given the toggle and count.
+    var shouldCluster: Bool { clusteringEnabled && markers.count >= clusterMinSize }
 
     /// Guards against a feedback loop when we programmatically clamp the region
     /// back to the minimum zoom inside `regionDidChange`.
@@ -297,54 +303,42 @@ public class Map: NSObject, UIGestureRecognizerDelegate {
 
     // MARK: Camera
 
-    /// Must be called on the main thread.
-    func setCameraInternal(coordinate: CLLocationCoordinate2D?, zoom: Double?, animate: Bool) {
+    /// Must be called on the main thread. `bearing` (heading, degrees clockwise
+    /// from north) and `pitch` (tilt, degrees from top-down) are applied on top of
+    /// the region/center change when supplied; nil leaves that axis unchanged.
+    func setCameraInternal(
+        coordinate: CLLocationCoordinate2D?,
+        zoom: Double?,
+        animate: Bool,
+        bearing: Double? = nil,
+        pitch: Double? = nil
+    ) {
         let center = coordinate ?? mapView.centerCoordinate
 
-        guard let zoom = zoom else {
+        if let zoom = zoom {
+            // Enforce the zoom range: a smaller zoom means a wider span (minZoom is the
+            // zoom-out floor), a larger zoom a tighter one (maxZoom is the zoom-in ceiling).
+            let clampedZoom = clampZoom(zoom, minZoom: config.minZoom, maxZoom: config.maxZoom)
+
+            let width = Double(mapView.bounds.width > 0 ? mapView.bounds.width : UIScreen.main.bounds.width)
+            let height = Double(mapView.bounds.height > 0 ? mapView.bounds.height : UIScreen.main.bounds.height)
+            let lonDelta = min(zoomToLongitudeDelta(clampedZoom, widthPoints: width), 360.0)
+            let latDelta = min(lonDelta * (height / max(width, 1)), 180.0)
+            let span = MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta)
+            let region = mapView.regionThatFits(MKCoordinateRegion(center: center, span: span))
+            mapView.setRegion(region, animated: animate)
+        } else if coordinate != nil {
             mapView.setCenter(center, animated: animate)
-            return
         }
 
-        // Enforce the zoom range: a smaller zoom means a wider span (minZoom is the
-        // zoom-out floor), a larger zoom a tighter one (maxZoom is the zoom-in ceiling).
-        let clampedZoom = clampZoom(zoom, minZoom: config.minZoom, maxZoom: config.maxZoom)
-
-        let width = Double(mapView.bounds.width > 0 ? mapView.bounds.width : UIScreen.main.bounds.width)
-        let height = Double(mapView.bounds.height > 0 ? mapView.bounds.height : UIScreen.main.bounds.height)
-        let lonDelta = min(zoomToLongitudeDelta(clampedZoom, widthPoints: width), 360.0)
-        let latDelta = min(lonDelta * (height / max(width, 1)), 180.0)
-        let span = MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta)
-        let region = mapView.regionThatFits(MKCoordinateRegion(center: center, span: span))
-        mapView.setRegion(region, animated: animate)
-    }
-
-    /// Must be called on the main thread.
-    func currentZoom() -> Double {
-        let width = Double(mapView.bounds.width > 0 ? mapView.bounds.width : UIScreen.main.bounds.width)
-        return longitudeDeltaToZoom(mapView.region.span.longitudeDelta, widthPoints: width)
-    }
-
-    /// Must be called on the main thread. Shape matches `LatLngBounds` in JS.
-    func boundsPayload() -> PluginCallResultData {
-        let region = mapView.region
-        let corners = regionCorners(center: region.center, span: region.span)
-        return [
-            "center": ["lat": region.center.latitude, "lng": region.center.longitude],
-            "southwest": ["lat": corners.southwest.latitude, "lng": corners.southwest.longitude],
-            "northeast": ["lat": corners.northeast.latitude, "lng": corners.northeast.longitude]
-        ]
-    }
-
-    /// Must be called on the main thread. Shape matches `CameraPosition` in JS.
-    func cameraPayload() -> PluginCallResultData {
-        let center = mapView.centerCoordinate
-        return [
-            "latitude": center.latitude,
-            "longitude": center.longitude,
-            "zoom": currentZoom(),
-            "bounds": boundsPayload()
-        ]
+        // Rotation/tilt ride on top of the region change, preserving the resulting
+        // center and distance. Reading the camera after the region set gives the
+        // new center/zoom to build on.
+        if bearing != nil || pitch != nil, let camera = mapView.camera.copy() as? MKMapCamera {
+            if let bearing = bearing { camera.heading = bearing }
+            if let pitch = pitch { camera.pitch = CGFloat(max(0, pitch)) }
+            mapView.setCamera(camera, animated: animate)
+        }
     }
 
     /// Frame `southwest`..`northeast` in the viewport, inset by `padding` points.
@@ -396,6 +390,9 @@ public class Map: NSObject, UIGestureRecognizerDelegate {
         marker.isDraggable = obj["draggable"] as? Bool ?? false
         marker.iconSize = AppleMapMarker.parseSize(obj["iconSize"])
         marker.iconAnchor = AppleMapMarker.parseAnchor(obj["iconAnchor"])
+        if let opacity = obj["opacity"] as? Double { marker.opacity = CGFloat(opacity) }
+        marker.tintColor = AppleMapMarker.parseTintColor(obj["tintColor"])
+        if let zIndex = obj["zIndex"] as? Double { marker.zIndex = zIndex }
         return marker
     }
 
@@ -439,6 +436,10 @@ public class Map: NSObject, UIGestureRecognizerDelegate {
                     // needed to enable/disable dragging.
                     marker.isDraggable = obj["draggable"] as? Bool ?? false
                 }
+                // Opacity / tint / z-order are applied to the live annotation view
+                // in place (see applyLiveStyleUpdates), so they don't need a
+                // re-render (which would flash the pin).
+                self.applyLiveStyleUpdates(from: obj, to: marker)
                 // Icon fields (url / size / anchor) re-render the annotation so
                 // viewFor reapplies the image and centerOffset; the fields above
                 // mutate in place. See AppleMapMarker.applyIconUpdates.
@@ -451,9 +452,9 @@ public class Map: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
-    func enableClustering() {
+    func enableClustering(minClusterSize: Int? = nil) {
         runOnMainSync {
-            guard !self.clusteringEnabled else { return }
+            if let minSize = minClusterSize { self.clusterMinSize = max(1, minSize) }
             self.clusteringEnabled = true
             self.refreshAnnotations()
         }

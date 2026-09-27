@@ -1,6 +1,6 @@
 {
   "name": "capacitor-plugin-apple-maps",
-  "version": "0.5.6",
+  "version": "0.6.0",
   "description": "Capacitor plugin rendering native Apple Maps (MapKit) on iOS, API-compatible with @capacitor/google-maps.",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",

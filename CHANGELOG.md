@@ -5,6 +5,34 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0]
+
+Parity additions to close gaps with `@capacitor/google-maps`.
+
+### Added
+
+- **Camera rotation and tilt.** `CameraConfig` (and so `setCamera`) now accepts
+  `bearing` (heading, degrees clockwise from north) and `angle` (tilt, degrees
+  from top-down), mapped to `MKMapCamera.heading` / `.pitch`. `getCameraPosition`
+  now reports both back. Previously the camera could only be centered and zoomed.
+- **Overlay tap events.** New `onPolygonClick`, `onPolylineClick` and
+  `onCircleClick` listeners fire when an overlay is tapped, carrying the overlay's
+  id and the tap coordinate. Polygons/circles hit on their filled interior;
+  polylines hit within a finger-width tolerance of the stroke.
+- **Marker `opacity`, `tintColor` and `zIndex`.** `opacity` (0..1) and `zIndex`
+  (draw order → `MKAnnotationView.zPriority`) apply to any marker; `tintColor`
+  (`{ r, g, b, a }`, 0..255) recolors the default MapKit pin
+  (`markerTintColor`). All three are also honoured by `updateMarkers`, applied in
+  place without a re-render.
+- **`getMapType()`.** Reads the current base map imagery, complementing
+  `setMapType`.
+- **`onMyLocationClick`.** Fires when the blue user-location dot is tapped.
+- **`AppleMap.setOnBoundsChangedListener`.** Alias of `setOnCameraIdleListener`,
+  for `@capacitor/google-maps` naming parity.
+- **`enableClustering` takes `minClusterSize`.** A best-effort lower bound on the
+  total marker count before clustering applies (MapKit has no per-cluster minimum,
+  so it is evaluated as annotations are rendered); defaults to `2`.
+
 ## [0.5.6]
 
 ### Added

@@ -96,7 +96,64 @@ extension Map {
         guard gesture.state == .ended else { return }
         // A tap on the bare map closes any open info window.
         dismissCallout()
-        emitMapGesture("onMapClick", at: gesture.location(in: mapView))
+        let point = gesture.location(in: mapView)
+        // An overlay tap reports the overlay hit (polygon/polyline/circle) instead
+        // of onMapClick; a tap on the bare map surface falls through to onMapClick.
+        if let hit = overlayHit(at: point) {
+            let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
+            delegate?.notifyListeners(hit.event, data: [
+                "mapId": id,
+                hit.idKey: hit.id,
+                "latitude": coordinate.latitude,
+                "longitude": coordinate.longitude
+            ])
+            return
+        }
+        emitMapGesture("onMapClick", at: point)
+    }
+
+    /// A tapped overlay: the JS event name, the id key for that overlay kind, and
+    /// the overlay's id.
+    struct OverlayHit {
+        let event: String
+        let idKey: String
+        let id: String
+    }
+
+    /// The topmost overlay under `point`, if the tap landed on one. Polygons and
+    /// circles hit on their filled interior; polylines hit within a finger-width
+    /// tolerance of the stroke.
+    private func overlayHit(at point: CGPoint) -> OverlayHit? {
+        let mapPoint = MKMapPoint(mapView.convert(point, toCoordinateFrom: mapView))
+        for (id, overlay) in overlays {
+            guard let renderer = mapView.renderer(for: overlay) as? MKOverlayPathRenderer,
+                  let path = renderer.path else { continue }
+            let rendererPoint = renderer.point(for: mapPoint)
+
+            let event: String
+            let idKey: String
+            var hitPath = path
+            if overlay is MKPolyline {
+                event = "onPolylineClick"
+                idKey = "polylineId"
+                // A line has no interior, so widen the stroke to a tappable band.
+                let width = max(renderer.lineWidth, 22)
+                hitPath = path.copy(strokingWithWidth: width, lineCap: .round, lineJoin: .round, miterLimit: 1)
+            } else if overlay is MKCircle {
+                event = "onCircleClick"
+                idKey = "circleId"
+            } else if overlay is MKPolygon {
+                event = "onPolygonClick"
+                idKey = "polygonId"
+            } else {
+                continue
+            }
+
+            if hitPath.contains(rendererPoint) {
+                return OverlayHit(event: event, idKey: idKey, id: id)
+            }
+        }
+        return nil
     }
 
     /// The marker under `point`, if the point landed on one (any marker, draggable

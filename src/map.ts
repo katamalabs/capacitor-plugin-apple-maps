@@ -8,6 +8,7 @@ import type {
   CameraMoveStartedCallbackData,
   CameraPosition,
   Circle,
+  CircleClickCallbackData,
   ClusterClickCallbackData,
   LatLng,
   LatLngBounds,
@@ -22,8 +23,11 @@ import type {
   MarkerClickCallbackData,
   MarkerDragCallbackData,
   MarkerUpdate,
+  MyLocationClickCallbackData,
   Polygon,
+  PolygonClickCallbackData,
   Polyline,
+  PolylineClickCallbackData,
 } from './definitions';
 import { CapacitorAppleMaps } from './implementation';
 
@@ -78,6 +82,11 @@ export class AppleMap {
   private onMapClickListener?: PluginListenerHandle;
   private onMapLongClickListener?: PluginListenerHandle;
   private onClusterClickListener?: PluginListenerHandle;
+  private onPolygonClickListener?: PluginListenerHandle;
+  private onPolylineClickListener?: PluginListenerHandle;
+  private onCircleClickListener?: PluginListenerHandle;
+  private onMyLocationClickListener?: PluginListenerHandle;
+  private onBoundsChangedListener?: PluginListenerHandle;
   private onMarkerDragStartListener?: PluginListenerHandle;
   private onMarkerDragListener?: PluginListenerHandle;
   private onMarkerDragEndListener?: PluginListenerHandle;
@@ -303,8 +312,13 @@ export class AppleMap {
     return CapacitorAppleMaps.removeMarker({ id: this.id, markerId: id });
   }
 
-  async enableClustering(): Promise<void> {
-    return CapacitorAppleMaps.enableClustering({ id: this.id });
+  /**
+   * Enable marker clustering. `minClusterSize` is a best-effort lower bound on the
+   * total marker count before clustering kicks in (MapKit has no per-cluster
+   * minimum); defaults to `2`.
+   */
+  async enableClustering(minClusterSize?: number): Promise<void> {
+    return CapacitorAppleMaps.enableClustering({ id: this.id, minClusterSize });
   }
 
   async disableClustering(): Promise<void> {
@@ -335,6 +349,12 @@ export class AppleMap {
 
   async setMapType(mapType: MapType): Promise<void> {
     return CapacitorAppleMaps.setMapType({ id: this.id, mapType });
+  }
+
+  /** Read the current base map imagery. */
+  async getMapType(): Promise<MapType> {
+    const res = await CapacitorAppleMaps.getMapType({ id: this.id });
+    return res.mapType;
   }
 
   /**
@@ -475,6 +495,74 @@ export class AppleMap {
     }
   }
 
+  /** Fires when a polygon overlay is tapped. */
+  async setOnPolygonClickListener(callback?: (data: PolygonClickCallbackData) => void): Promise<void> {
+    if (this.onPolygonClickListener) {
+      await this.onPolygonClickListener.remove();
+      this.onPolygonClickListener = undefined;
+    }
+    if (callback) {
+      this.onPolygonClickListener = await CapacitorAppleMaps.addListener('onPolygonClick', (data) => {
+        if (data.mapId === this.id) callback(data);
+      });
+    }
+  }
+
+  /** Fires when a polyline overlay is tapped. */
+  async setOnPolylineClickListener(callback?: (data: PolylineClickCallbackData) => void): Promise<void> {
+    if (this.onPolylineClickListener) {
+      await this.onPolylineClickListener.remove();
+      this.onPolylineClickListener = undefined;
+    }
+    if (callback) {
+      this.onPolylineClickListener = await CapacitorAppleMaps.addListener('onPolylineClick', (data) => {
+        if (data.mapId === this.id) callback(data);
+      });
+    }
+  }
+
+  /** Fires when a circle overlay is tapped. */
+  async setOnCircleClickListener(callback?: (data: CircleClickCallbackData) => void): Promise<void> {
+    if (this.onCircleClickListener) {
+      await this.onCircleClickListener.remove();
+      this.onCircleClickListener = undefined;
+    }
+    if (callback) {
+      this.onCircleClickListener = await CapacitorAppleMaps.addListener('onCircleClick', (data) => {
+        if (data.mapId === this.id) callback(data);
+      });
+    }
+  }
+
+  /** Fires when the blue user-location dot is tapped (see `enableCurrentLocation`). */
+  async setOnMyLocationClickListener(callback?: (data: MyLocationClickCallbackData) => void): Promise<void> {
+    if (this.onMyLocationClickListener) {
+      await this.onMyLocationClickListener.remove();
+      this.onMyLocationClickListener = undefined;
+    }
+    if (callback) {
+      this.onMyLocationClickListener = await CapacitorAppleMaps.addListener('onMyLocationClick', (data) => {
+        if (data.mapId === this.id) callback(data);
+      });
+    }
+  }
+
+  /**
+   * Fires when the camera settles after a move. Alias of
+   * {@link setOnCameraIdleListener}, provided for `@capacitor/google-maps` parity.
+   */
+  async setOnBoundsChangedListener(callback?: (data: CameraIdleCallbackData) => void): Promise<void> {
+    if (this.onBoundsChangedListener) {
+      await this.onBoundsChangedListener.remove();
+      this.onBoundsChangedListener = undefined;
+    }
+    if (callback) {
+      this.onBoundsChangedListener = await CapacitorAppleMaps.addListener('onCameraIdle', (data) => {
+        if (data.mapId === this.id) callback(data);
+      });
+    }
+  }
+
   async setOnMarkerDragStartListener(callback?: (data: MarkerDragCallbackData) => void): Promise<void> {
     if (this.onMarkerDragStartListener) {
       await this.onMarkerDragStartListener.remove();
@@ -534,6 +622,11 @@ export class AppleMap {
     await this.onMapClickListener?.remove();
     await this.onMapLongClickListener?.remove();
     await this.onClusterClickListener?.remove();
+    await this.onPolygonClickListener?.remove();
+    await this.onPolylineClickListener?.remove();
+    await this.onCircleClickListener?.remove();
+    await this.onMyLocationClickListener?.remove();
+    await this.onBoundsChangedListener?.remove();
     await this.onMarkerDragStartListener?.remove();
     await this.onMarkerDragListener?.remove();
     await this.onMarkerDragEndListener?.remove();
@@ -544,6 +637,11 @@ export class AppleMap {
     this.onMapClickListener = undefined;
     this.onMapLongClickListener = undefined;
     this.onClusterClickListener = undefined;
+    this.onPolygonClickListener = undefined;
+    this.onPolylineClickListener = undefined;
+    this.onCircleClickListener = undefined;
+    this.onMyLocationClickListener = undefined;
+    this.onBoundsChangedListener = undefined;
     this.onMarkerDragStartListener = undefined;
     this.onMarkerDragListener = undefined;
     this.onMarkerDragEndListener = undefined;
