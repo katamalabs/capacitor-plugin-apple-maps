@@ -54,4 +54,27 @@ class MarkerStyleTests: XCTestCase {
         // An unknown type string falls back to standard.
         XCTAssertEqual(Map.mapType(from: "bogus"), .standard)
     }
+
+    func testUserTrackingModeMapping() {
+        XCTAssertEqual(Map.userTrackingMode(from: "follow"), .follow)
+        XCTAssertEqual(Map.userTrackingMode(from: "followWithHeading"), .followWithHeading)
+        XCTAssertEqual(Map.userTrackingMode(from: "none"), MKUserTrackingMode.none)
+        // Unknown/absent falls back to no tracking.
+        XCTAssertEqual(Map.userTrackingMode(from: "bogus"), MKUserTrackingMode.none)
+    }
+
+    func testParseDashPattern() {
+        XCTAssertEqual(Map.parseDashPattern([8.0, 4.0]), [NSNumber(value: 8.0), NSNumber(value: 4.0)])
+        // Empty, non-array, and absent all mean "solid line".
+        XCTAssertNil(Map.parseDashPattern([]))
+        XCTAssertNil(Map.parseDashPattern("dashed"))
+        XCTAssertNil(Map.parseDashPattern(nil))
+    }
+
+    func testConfigParsesShowsBuildings() throws {
+        let center = ["lat": 0.0, "lng": 0.0] as JSObject
+        // Defaults to true (MapKit's default), and honours an explicit false.
+        XCTAssertTrue(try AppleMapConfig(fromJSObject: ["center": center]).showsBuildings)
+        XCTAssertFalse(try AppleMapConfig(fromJSObject: ["center": center, "showsBuildings": false]).showsBuildings)
+    }
 }

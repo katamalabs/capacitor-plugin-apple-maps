@@ -96,6 +96,30 @@ export class CapacitorAppleMapsWeb extends WebPlugin implements CapacitorAppleMa
     this.notAvailable();
   }
 
+  async setUserTrackingMode(): Promise<void> {
+    this.notAvailable();
+  }
+
+  async setUserTrackingButtonVisible(): Promise<void> {
+    this.notAvailable();
+  }
+
+  async setBuildingsEnabled(): Promise<void> {
+    this.notAvailable();
+  }
+
+  async setCameraBoundary(): Promise<void> {
+    this.notAvailable();
+  }
+
+  async selectMarker(): Promise<void> {
+    this.notAvailable();
+  }
+
+  async deselectMarker(): Promise<void> {
+    this.notAvailable();
+  }
+
   async enableCurrentLocation(): Promise<void> {
     this.notAvailable();
   }

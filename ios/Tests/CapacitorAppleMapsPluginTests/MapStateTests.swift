@@ -133,6 +133,46 @@ final class MapStateTests: XCTestCase {
         XCTAssertEqual(map.clusterMinSize, 2)
     }
 
+    func testGeodesicPolylineUsesGeodesicClass() throws {
+        let map = try makeMap()
+        let ids = map.addPolylines([[
+            "path": [["lat": 0.0, "lng": 0.0] as JSObject, ["lat": 10.0, "lng": 80.0] as JSObject],
+            "geodesic": true
+        ]])
+        let overlay = try XCTUnwrap(map.overlays[try XCTUnwrap(ids.first)])
+        XCTAssertTrue(overlay is MKGeodesicPolyline)
+
+        // A plain polyline is not geodesic.
+        let plainId = try XCTUnwrap(map.addPolylines([[
+            "path": [["lat": 0.0, "lng": 0.0] as JSObject, ["lat": 1.0, "lng": 1.0] as JSObject]
+        ]]).first)
+        XCTAssertFalse(try XCTUnwrap(map.overlays[plainId]) is MKGeodesicPolyline)
+    }
+
+    // MARK: - Selection
+
+    func testSelectMarkerReportsFoundState() throws {
+        let map = try makeMap()
+        let id = try XCTUnwrap(map.addMarkers([["coordinate": ["lat": 1.0, "lng": 2.0] as JSObject]]).first)
+        XCTAssertTrue(map.selectMarker(id))
+        XCTAssertFalse(map.selectMarker("does-not-exist"))
+        map.deselectMarker()   // no-op with nothing open; must not crash
+    }
+
+    // MARK: - Camera boundary
+
+    func testCameraBoundarySetAndClear() throws {
+        let map = try makeMap()
+        map.setCameraBoundary(
+            southwest: CLLocationCoordinate2D(latitude: 40, longitude: -75),
+            northeast: CLLocationCoordinate2D(latitude: 43, longitude: -70)
+        )
+        XCTAssertNotNil(map.mapView.cameraBoundary)
+
+        map.setCameraBoundary(southwest: nil, northeast: nil)
+        XCTAssertNil(map.mapView.cameraBoundary)
+    }
+
     // MARK: - Map type
 
     func testSetMapTypeRoundTripsThroughMap() throws {

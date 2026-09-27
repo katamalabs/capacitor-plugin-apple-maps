@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0]
+
+MapKit-native capabilities beyond `@capacitor/google-maps` parity.
+
+### Added
+
+- **User tracking.** `setUserTrackingMode('none' | 'follow' | 'followWithHeading')`
+  follows the user's location (and optionally heading) via `MKUserTrackingMode`,
+  and `setUserTrackingButtonVisible` shows a native `MKUserTrackingButton`
+  recenter/follow control in the map's corner. A following mode turns on the
+  user-location dot; the host app still needs location permission.
+- **Programmatic marker selection.** `selectMarker(markerId)` opens a marker's
+  info-window bubble from code (rejects on an unknown id); `deselectMarker()`
+  closes it.
+- **Dashed and geodesic polylines.** `Polyline.lineDashPattern` (also on `Polygon`
+  and `Circle`) draws a dashed stroke; `Polyline.geodesic` follows the great-circle
+  path between points (`MKGeodesicPolyline`).
+- **3D buildings.** `showsBuildings` config option and `setBuildingsEnabled` runtime
+  setter (`MKMapView.showsBuildings`); defaults to `true`.
+- **Camera boundary.** `setCameraBoundary(bounds | coordinates | null)` restricts
+  panning so the camera center stays within a region (`MKMapView.CameraBoundary`);
+  `null` clears it.
+
 ## [0.6.0]
 
 Parity additions to close gaps with `@capacitor/google-maps`.

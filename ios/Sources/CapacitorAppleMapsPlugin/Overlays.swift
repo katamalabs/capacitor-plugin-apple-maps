@@ -18,7 +18,12 @@ extension Map {
             for obj in objs {
                 let coords = Map.parseCoords(obj["path"])
                 guard coords.count >= 2 else { continue }
-                let polyline = MKPolyline(coordinates: coords, count: coords.count)
+                // A geodesic line follows the great-circle (shortest) path between
+                // points rather than a straight screen line. MKGeodesicPolyline is a
+                // MKPolyline subclass, so it renders and hit-tests through the same paths.
+                let polyline: MKPolyline = (obj["geodesic"] as? Bool ?? false)
+                    ? MKGeodesicPolyline(coordinates: coords, count: coords.count)
+                    : MKPolyline(coordinates: coords, count: coords.count)
                 let style = Map.overlayStyle(from: obj, defaultLineWidth: 3, filled: false)
                 ids.append(self.register(polyline, style: style))
             }
@@ -276,8 +281,17 @@ extension Map {
         OverlayStyle(
             strokeColor: color(obj["strokeColor"], opacity: obj["strokeOpacity"]) ?? .systemBlue,
             lineWidth: CGFloat(obj["strokeWeight"] as? Double ?? defaultLineWidth),
-            fillColor: filled ? color(obj["fillColor"], opacity: obj["fillOpacity"]) : nil
+            fillColor: filled ? color(obj["fillColor"], opacity: obj["fillOpacity"]) : nil,
+            lineDashPattern: parseDashPattern(obj["lineDashPattern"])
         )
+    }
+
+    /// A `[on, off, ...]` array of point lengths as `[NSNumber]` for a dashed
+    /// stroke, or nil for a solid line (absent, empty, or malformed).
+    static func parseDashPattern(_ value: Any?) -> [NSNumber]? {
+        guard let arr = value as? [Any] else { return nil }
+        let lengths = arr.compactMap { ($0 as? Double).map { NSNumber(value: $0) } }
+        return lengths.isEmpty ? nil : lengths
     }
 
     /// Parses a flat array of `{lat,lng}` objects into coordinates.
@@ -389,6 +403,7 @@ extension CapacitorAppleMapsPlugin {
             let renderer = MKPolylineRenderer(polyline: polyline)
             renderer.strokeColor = style?.strokeColor ?? .systemBlue
             renderer.lineWidth = style?.lineWidth ?? 3
+            renderer.lineDashPattern = style?.lineDashPattern
             return renderer
         }
         if let polygon = overlay as? MKPolygon {
@@ -396,6 +411,7 @@ extension CapacitorAppleMapsPlugin {
             renderer.strokeColor = style?.strokeColor ?? .systemBlue
             renderer.lineWidth = style?.lineWidth ?? 2
             renderer.fillColor = style?.fillColor
+            renderer.lineDashPattern = style?.lineDashPattern
             return renderer
         }
         if let circle = overlay as? MKCircle {
@@ -403,6 +419,7 @@ extension CapacitorAppleMapsPlugin {
             renderer.strokeColor = style?.strokeColor ?? .systemBlue
             renderer.lineWidth = style?.lineWidth ?? 2
             renderer.fillColor = style?.fillColor
+            renderer.lineDashPattern = style?.lineDashPattern
             return renderer
         }
         return MKOverlayRenderer(overlay: overlay)

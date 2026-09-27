@@ -191,6 +191,12 @@ const map =
 * [`removeOverlays(...)`](#removeoverlays)
 * [`setMapType(...)`](#setmaptype)
 * [`getMapType(...)`](#getmaptype)
+* [`setUserTrackingMode(...)`](#setusertrackingmode)
+* [`setUserTrackingButtonVisible(...)`](#setusertrackingbuttonvisible)
+* [`setBuildingsEnabled(...)`](#setbuildingsenabled)
+* [`setCameraBoundary(...)`](#setcameraboundary)
+* [`selectMarker(...)`](#selectmarker)
+* [`deselectMarker(...)`](#deselectmarker)
 * [`enableCurrentLocation(...)`](#enablecurrentlocation)
 * [`setTrafficEnabled(...)`](#settrafficenabled)
 * [`setPointsOfInterestEnabled(...)`](#setpointsofinterestenabled)
@@ -545,6 +551,101 @@ Read the current base map imagery.
 | **`options`** | <code>{ id: string; }</code> |
 
 **Returns:** <code>Promise&lt;{ mapType: <a href="#maptype">MapType</a>; }&gt;</code>
+
+--------------------
+
+
+### setUserTrackingMode(...)
+
+```typescript
+setUserTrackingMode(options: { id: string; mode: UserTrackingMode; }) => Promise<void>
+```
+
+Follow the user's location (`follow`) or location and heading
+(`followWithHeading`), or stop following (`none`). A following mode turns on
+the user-location dot; the host app still needs location permission
+({@link requestPermissions}).
+
+| Param         | Type                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------ |
+| **`options`** | <code>{ id: string; mode: <a href="#usertrackingmode">UserTrackingMode</a>; }</code> |
+
+--------------------
+
+
+### setUserTrackingButtonVisible(...)
+
+```typescript
+setUserTrackingButtonVisible(options: { id: string; visible: boolean; }) => Promise<void>
+```
+
+Show or hide a native recenter/follow button in the map's corner.
+
+| Param         | Type                                           |
+| ------------- | ---------------------------------------------- |
+| **`options`** | <code>{ id: string; visible: boolean; }</code> |
+
+--------------------
+
+
+### setBuildingsEnabled(...)
+
+```typescript
+setBuildingsEnabled(options: { id: string; enabled: boolean; }) => Promise<void>
+```
+
+Show or hide extruded 3D buildings (`MKMapView.showsBuildings`).
+
+| Param         | Type                                           |
+| ------------- | ---------------------------------------------- |
+| **`options`** | <code>{ id: string; enabled: boolean; }</code> |
+
+--------------------
+
+
+### setCameraBoundary(...)
+
+```typescript
+setCameraBoundary(options: { id: string; bounds?: LatLngBounds | null; }) => Promise<void>
+```
+
+Restrict panning so the camera center stays within `bounds`. Pass `null` (or
+omit `bounds`) to clear the restriction.
+
+| Param         | Type                                                                                    |
+| ------------- | --------------------------------------------------------------------------------------- |
+| **`options`** | <code>{ id: string; bounds?: <a href="#latlngbounds">LatLngBounds</a> \| null; }</code> |
+
+--------------------
+
+
+### selectMarker(...)
+
+```typescript
+selectMarker(options: { id: string; markerId: string; }) => Promise<void>
+```
+
+Programmatically select a marker, opening its info-window bubble (if it has a
+title). Rejects if no marker has that id.
+
+| Param         | Type                                           |
+| ------------- | ---------------------------------------------- |
+| **`options`** | <code>{ id: string; markerId: string; }</code> |
+
+--------------------
+
+
+### deselectMarker(...)
+
+```typescript
+deselectMarker(options: { id: string; }) => Promise<void>
+```
+
+Close any open info-window bubble.
+
+| Param         | Type                         |
+| ------------- | ---------------------------- |
+| **`options`** | <code>{ id: string; }</code> |
 
 --------------------
 
@@ -1115,6 +1216,7 @@ bounding rectangle - callers do not set them.
 | **`showsPointsOfInterest`** | <code>boolean</code>                                      | Show Apple's points of interest (shops, parks, …). Maps to a `MKPointOfInterestFilter` of `.includingAll` / `.excludingAll`. Defaults to `true` (MapKit's default).                                                                                                                                                                                                                                  |
 | **`showsCompass`**          | <code>boolean</code>                                      | Show the compass when the map is rotated (`MKMapView.showsCompass`). Defaults to `true`.                                                                                                                                                                                                                                                                                                             |
 | **`showsScale`**            | <code>boolean</code>                                      | Show the scale bar while zooming (`MKMapView.showsScale`). Defaults to `false`.                                                                                                                                                                                                                                                                                                                      |
+| **`showsBuildings`**        | <code>boolean</code>                                      | Render extruded 3D buildings where MapKit has them (`MKMapView.showsBuildings`). Defaults to `true` (MapKit's default).                                                                                                                                                                                                                                                                              |
 | **`colorScheme`**           | <code><a href="#mapcolorscheme">MapColorScheme</a></code> | Force a light/dark appearance regardless of the device setting. Defaults to `default` (follow system).                                                                                                                                                                                                                                                                                               |
 | **`gestures`**              | <code><a href="#mapgestures">MapGestures</a></code>       | Which user gestures are enabled. Each defaults to `true`.                                                                                                                                                                                                                                                                                                                                            |
 | **`padding`**               | <code><a href="#mappadding">MapPadding</a></code>         | Inset applied to the map's edges (controls + `fitBounds` framing).                                                                                                                                                                                                                                                                                                                                   |
@@ -1240,37 +1342,41 @@ fields are left as-is; a moved marker animates to its new coordinate.
 
 Shared stroke/fill styling for overlays. Colors are `#RRGGBB` or `#RRGGBBAA` hex.
 
-| Prop                | Type                  | Description                                                        |
-| ------------------- | --------------------- | ------------------------------------------------------------------ |
-| **`path`**          | <code>LatLng[]</code> |                                                                    |
-| **`strokeColor`**   | <code>string</code>   | Line color hex. Defaults to the system blue.                       |
-| **`strokeWeight`**  | <code>number</code>   | Line width in points. Defaults to `3`.                             |
-| **`strokeOpacity`** | <code>number</code>   | Line opacity `0..1`, applied on top of any alpha in `strokeColor`. |
+| Prop                  | Type                  | Description                                                                                                                                                |
+| --------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`path`**            | <code>LatLng[]</code> |                                                                                                                                                            |
+| **`strokeColor`**     | <code>string</code>   | Line color hex. Defaults to the system blue.                                                                                                               |
+| **`strokeWeight`**    | <code>number</code>   | Line width in points. Defaults to `3`.                                                                                                                     |
+| **`strokeOpacity`**   | <code>number</code>   | Line opacity `0..1`, applied on top of any alpha in `strokeColor`.                                                                                         |
+| **`lineDashPattern`** | <code>number[]</code> | Dash pattern as alternating on/off segment lengths in points, e.g. `[8, 4]` for an 8-on/4-off dashed line. Omit (or pass an empty array) for a solid line. |
+| **`geodesic`**        | <code>boolean</code>  | Follow the great-circle (shortest) path between points rather than a straight screen line - noticeable over long distances. Defaults to `false`.           |
 
 
 #### Polygon
 
-| Prop                | Type                                | Description                                                                                                  |
-| ------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| **`paths`**         | <code>LatLng[] \| LatLng[][]</code> | Either a single ring of points, or an array of rings where the first is the exterior and the rest are holes. |
-| **`strokeColor`**   | <code>string</code>                 |                                                                                                              |
-| **`strokeWeight`**  | <code>number</code>                 |                                                                                                              |
-| **`strokeOpacity`** | <code>number</code>                 |                                                                                                              |
-| **`fillColor`**     | <code>string</code>                 | Fill color hex. Unfilled if omitted.                                                                         |
-| **`fillOpacity`**   | <code>number</code>                 |                                                                                                              |
+| Prop                  | Type                                | Description                                                                                                   |
+| --------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **`paths`**           | <code>LatLng[] \| LatLng[][]</code> | Either a single ring of points, or an array of rings where the first is the exterior and the rest are holes.  |
+| **`strokeColor`**     | <code>string</code>                 |                                                                                                               |
+| **`strokeWeight`**    | <code>number</code>                 |                                                                                                               |
+| **`strokeOpacity`**   | <code>number</code>                 |                                                                                                               |
+| **`fillColor`**       | <code>string</code>                 | Fill color hex. Unfilled if omitted.                                                                          |
+| **`fillOpacity`**     | <code>number</code>                 |                                                                                                               |
+| **`lineDashPattern`** | <code>number[]</code>               | Dashed stroke pattern in points, e.g. `[8, 4]`. See {@link <a href="#polyline">Polyline.lineDashPattern</a>}. |
 
 
 #### Circle
 
-| Prop                | Type                                      | Description       |
-| ------------------- | ----------------------------------------- | ----------------- |
-| **`center`**        | <code><a href="#latlng">LatLng</a></code> |                   |
-| **`radius`**        | <code>number</code>                       | Radius in meters. |
-| **`strokeColor`**   | <code>string</code>                       |                   |
-| **`strokeWeight`**  | <code>number</code>                       |                   |
-| **`strokeOpacity`** | <code>number</code>                       |                   |
-| **`fillColor`**     | <code>string</code>                       |                   |
-| **`fillOpacity`**   | <code>number</code>                       |                   |
+| Prop                  | Type                                      | Description                                                                                                   |
+| --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **`center`**          | <code><a href="#latlng">LatLng</a></code> |                                                                                                               |
+| **`radius`**          | <code>number</code>                       | Radius in meters.                                                                                             |
+| **`strokeColor`**     | <code>string</code>                       |                                                                                                               |
+| **`strokeWeight`**    | <code>number</code>                       |                                                                                                               |
+| **`strokeOpacity`**   | <code>number</code>                       |                                                                                                               |
+| **`fillColor`**       | <code>string</code>                       |                                                                                                               |
+| **`fillOpacity`**     | <code>number</code>                       |                                                                                                               |
+| **`lineDashPattern`** | <code>number[]</code>                     | Dashed stroke pattern in points, e.g. `[8, 4]`. See {@link <a href="#polyline">Polyline.lineDashPattern</a>}. |
 
 
 #### SearchCompletion
@@ -1485,6 +1591,15 @@ Forces the map's light/dark appearance regardless of the device setting, via
 `overrideUserInterfaceStyle`. `default` follows the system.
 
 <code>'default' | 'light' | 'dark'</code>
+
+
+#### UserTrackingMode
+
+How the map follows the user's location. `none` disables tracking; `follow`
+keeps the user centered; `followWithHeading` also rotates the map to match the
+device heading. Maps to `MKUserTrackingMode`.
+
+<code>'none' | 'follow' | 'followWithHeading'</code>
 
 
 #### SearchResultType

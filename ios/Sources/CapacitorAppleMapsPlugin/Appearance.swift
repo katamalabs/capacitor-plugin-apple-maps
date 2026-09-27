@@ -47,6 +47,7 @@ extension Map {
         mapView.pointOfInterestFilter = config.showsPointsOfInterest ? .includingAll : .excludingAll
         mapView.showsCompass = config.showsCompass
         mapView.showsScale = config.showsScale
+        mapView.showsBuildings = config.showsBuildings
         mapView.overrideUserInterfaceStyle = Map.userInterfaceStyle(from: config.colorScheme)
     }
 

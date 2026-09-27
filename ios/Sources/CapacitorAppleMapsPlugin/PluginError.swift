@@ -10,6 +10,8 @@ import Foundation
 enum PluginError {
     /// No map is registered for the `id` the call supplied.
     static let mapNotFound = "MAP_NOT_FOUND"
+    /// No marker is registered for the `markerId` the call supplied.
+    static let markerNotFound = "MARKER_NOT_FOUND"
     /// A required argument was missing or the wrong type.
     static let invalidArgument = "INVALID_ARGUMENT"
     /// A native operation failed at runtime (its `Error` is forwarded too).

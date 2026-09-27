@@ -28,6 +28,7 @@ import type {
   PolygonClickCallbackData,
   Polyline,
   PolylineClickCallbackData,
+  UserTrackingMode,
 } from './definitions';
 import { boundsForCoordinates } from './geometry';
 import { CapacitorAppleMaps } from './implementation';
@@ -331,6 +332,44 @@ export class AppleMap {
   async getMapType(): Promise<MapType> {
     const res = await CapacitorAppleMaps.getMapType({ id: this.id });
     return res.mapType;
+  }
+
+  /**
+   * Follow the user's location (`follow`) or location and heading
+   * (`followWithHeading`), or stop (`none`). Turns on the user-location dot; needs
+   * location permission (see {@link enableCurrentLocation}).
+   */
+  async setUserTrackingMode(mode: UserTrackingMode): Promise<void> {
+    return CapacitorAppleMaps.setUserTrackingMode({ id: this.id, mode });
+  }
+
+  /** Show or hide a native recenter/follow button in the map's corner. */
+  async setUserTrackingButtonVisible(visible: boolean): Promise<void> {
+    return CapacitorAppleMaps.setUserTrackingButtonVisible({ id: this.id, visible });
+  }
+
+  /** Show or hide extruded 3D buildings. */
+  async setBuildingsEnabled(enabled: boolean): Promise<void> {
+    return CapacitorAppleMaps.setBuildingsEnabled({ id: this.id, enabled });
+  }
+
+  /**
+   * Restrict panning so the camera center stays within the given bounds (or a list
+   * of coordinates to enclose). Pass `null` to clear the restriction.
+   */
+  async setCameraBoundary(target: LatLngBounds | LatLng[] | null): Promise<void> {
+    const bounds = target === null ? null : Array.isArray(target) ? boundsForCoordinates(target) : target;
+    return CapacitorAppleMaps.setCameraBoundary({ id: this.id, bounds });
+  }
+
+  /** Open a marker's info-window bubble programmatically. Rejects on unknown id. */
+  async selectMarker(markerId: string): Promise<void> {
+    return CapacitorAppleMaps.selectMarker({ id: this.id, markerId });
+  }
+
+  /** Close any open info-window bubble. */
+  async deselectMarker(): Promise<void> {
+    return CapacitorAppleMaps.deselectMarker({ id: this.id });
   }
 
   /**

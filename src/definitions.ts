@@ -61,6 +61,11 @@ export interface AppleMapConfig {
   showsCompass?: boolean;
   /** Show the scale bar while zooming (`MKMapView.showsScale`). Defaults to `false`. */
   showsScale?: boolean;
+  /**
+   * Render extruded 3D buildings where MapKit has them (`MKMapView.showsBuildings`).
+   * Defaults to `true` (MapKit's default).
+   */
+  showsBuildings?: boolean;
   /** Force a light/dark appearance regardless of the device setting. Defaults to `default` (follow system). */
   colorScheme?: MapColorScheme;
   /** Which user gestures are enabled. Each defaults to `true`. */
@@ -145,6 +150,13 @@ export type MapType = 'standard' | 'satellite' | 'hybrid' | 'satelliteFlyover' |
  * `overrideUserInterfaceStyle`. `default` follows the system.
  */
 export type MapColorScheme = 'default' | 'light' | 'dark';
+
+/**
+ * How the map follows the user's location. `none` disables tracking; `follow`
+ * keeps the user centered; `followWithHeading` also rotates the map to match the
+ * device heading. Maps to `MKUserTrackingMode`.
+ */
+export type UserTrackingMode = 'none' | 'follow' | 'followWithHeading';
 
 export interface Marker {
   coordinate: LatLng;
@@ -231,6 +243,16 @@ export interface Polyline {
   strokeWeight?: number;
   /** Line opacity `0..1`, applied on top of any alpha in `strokeColor`. */
   strokeOpacity?: number;
+  /**
+   * Dash pattern as alternating on/off segment lengths in points, e.g. `[8, 4]`
+   * for an 8-on/4-off dashed line. Omit (or pass an empty array) for a solid line.
+   */
+  lineDashPattern?: number[];
+  /**
+   * Follow the great-circle (shortest) path between points rather than a straight
+   * screen line - noticeable over long distances. Defaults to `false`.
+   */
+  geodesic?: boolean;
 }
 
 export interface Polygon {
@@ -245,6 +267,8 @@ export interface Polygon {
   /** Fill color hex. Unfilled if omitted. */
   fillColor?: string;
   fillOpacity?: number;
+  /** Dashed stroke pattern in points, e.g. `[8, 4]`. See {@link Polyline.lineDashPattern}. */
+  lineDashPattern?: number[];
 }
 
 export interface Circle {
@@ -256,6 +280,8 @@ export interface Circle {
   strokeOpacity?: number;
   fillColor?: string;
   fillOpacity?: number;
+  /** Dashed stroke pattern in points, e.g. `[8, 4]`. See {@link Polyline.lineDashPattern}. */
+  lineDashPattern?: number[];
 }
 
 /** Visible-region bounds, mirroring the `@capacitor/google-maps` shape. */
@@ -488,6 +514,29 @@ export interface CapacitorAppleMapsPlugin {
   setMapType(options: { id: string; mapType: MapType }): Promise<void>;
   /** Read the current base map imagery. */
   getMapType(options: { id: string }): Promise<{ mapType: MapType }>;
+  /**
+   * Follow the user's location (`follow`) or location and heading
+   * (`followWithHeading`), or stop following (`none`). A following mode turns on
+   * the user-location dot; the host app still needs location permission
+   * ({@link requestPermissions}).
+   */
+  setUserTrackingMode(options: { id: string; mode: UserTrackingMode }): Promise<void>;
+  /** Show or hide a native recenter/follow button in the map's corner. */
+  setUserTrackingButtonVisible(options: { id: string; visible: boolean }): Promise<void>;
+  /** Show or hide extruded 3D buildings (`MKMapView.showsBuildings`). */
+  setBuildingsEnabled(options: { id: string; enabled: boolean }): Promise<void>;
+  /**
+   * Restrict panning so the camera center stays within `bounds`. Pass `null` (or
+   * omit `bounds`) to clear the restriction.
+   */
+  setCameraBoundary(options: { id: string; bounds?: LatLngBounds | null }): Promise<void>;
+  /**
+   * Programmatically select a marker, opening its info-window bubble (if it has a
+   * title). Rejects if no marker has that id.
+   */
+  selectMarker(options: { id: string; markerId: string }): Promise<void>;
+  /** Close any open info-window bubble. */
+  deselectMarker(options: { id: string }): Promise<void>;
   /**
    * Show or hide the blue user-location dot. Call {@link requestPermissions}
    * first to obtain location permission, and declare the

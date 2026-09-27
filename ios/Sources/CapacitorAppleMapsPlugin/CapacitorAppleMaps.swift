@@ -86,6 +86,8 @@ struct OverlayStyle {
     var strokeColor: UIColor
     var lineWidth: CGFloat
     var fillColor: UIColor?
+    /// Dash pattern (on/off point lengths) for the stroke, or nil for a solid line.
+    var lineDashPattern: [NSNumber]?
 }
 
 // MARK: - Config
@@ -106,6 +108,7 @@ struct AppleMapConfig {
     let showsPointsOfInterest: Bool
     let showsCompass: Bool
     let showsScale: Bool
+    let showsBuildings: Bool
     let colorScheme: String
     let scrollEnabled: Bool
     let zoomEnabled: Bool
@@ -135,6 +138,7 @@ struct AppleMapConfig {
         self.showsPointsOfInterest = obj["showsPointsOfInterest"] as? Bool ?? true
         self.showsCompass = obj["showsCompass"] as? Bool ?? true
         self.showsScale = obj["showsScale"] as? Bool ?? false
+        self.showsBuildings = obj["showsBuildings"] as? Bool ?? true
         self.colorScheme = obj["colorScheme"] as? String ?? "default"
         let gestures = obj["gestures"] as? JSObject ?? [:]
         self.scrollEnabled = gestures["scroll"] as? Bool ?? true
@@ -199,6 +203,10 @@ public class Map: NSObject, UIGestureRecognizerDelegate {
 
     /// Retains the in-flight `MKMapSnapshotter` for the duration of `takeSnapshot`.
     var pendingSnapshotter: MKMapSnapshotter?
+
+    /// The user-tracking button (recenter/follow control) when shown, so it can be
+    /// removed again. See setUserTrackingButton in MapControls.swift.
+    var userTrackingButton: MKUserTrackingButton?
 
     weak var delegate: CapacitorAppleMapsPlugin?
     var targetView: UIView?
