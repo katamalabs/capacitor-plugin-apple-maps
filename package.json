@@ -16,15 +16,15 @@
   ],
   "author": {
     "name": "pjaudiomv",
-    "email": "engineering@katamaengineering.com"
+    "email": "engineering@katamalabs.com"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/katamaengineering/capacitor-plugin-apple-maps.git"
+    "url": "git+https://github.com/katamalabs/capacitor-plugin-apple-maps.git"
   },
   "bugs": {
-    "url": "https://github.com/katamaengineering/capacitor-plugin-apple-maps/issues"
+    "url": "https://github.com/katamalabs/capacitor-plugin-apple-maps/issues"
   },
   "keywords": [
     "capacitor",

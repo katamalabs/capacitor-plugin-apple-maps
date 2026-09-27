@@ -1646,7 +1646,7 @@ Thanks goes to these wonderful people
 <table>
   <tbody>
     <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/pjaudiomv"><img src="https://avatars.githubusercontent.com/u/pjaudiomv?s=100" width="100px;" alt="pjaudiomv"/><br /><sub><b>pjaudiomv</b></sub></a><br /><a href="https://github.com/katamaengineering/capacitor-plugin-apple-maps/commits?author=pjaudiomv" title="Code">💻</a> <a href="https://github.com/katamaengineering/capacitor-plugin-apple-maps/commits?author=pjaudiomv" title="Documentation">📖</a> <a href="#maintenance-pjaudiomv" title="Maintenance">🚧</a> <a href="https://github.com/katamaengineering/capacitor-plugin-apple-maps/commits?author=pjaudiomv" title="Tests">⚠️</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/pjaudiomv"><img src="https://avatars.githubusercontent.com/u/pjaudiomv?s=100" width="100px;" alt="pjaudiomv"/><br /><sub><b>pjaudiomv</b></sub></a><br /><a href="https://github.com/katamalabs/capacitor-plugin-apple-maps/commits?author=pjaudiomv" title="Code">💻</a> <a href="https://github.com/katamalabs/capacitor-plugin-apple-maps/commits?author=pjaudiomv" title="Documentation">📖</a> <a href="#maintenance-pjaudiomv" title="Maintenance">🚧</a> <a href="https://github.com/katamalabs/capacitor-plugin-apple-maps/commits?author=pjaudiomv" title="Tests">⚠️</a></td>
     </tr>
   </tbody>
 </table>
