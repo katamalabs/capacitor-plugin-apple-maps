@@ -94,7 +94,7 @@ xcrun simctl install "${UDID}" "${APP_PATH}"
 # Put the simulator in San Francisco, where the checklist's search steps look.
 # MapKit biases search toward the device location (a fresh simulator defaults
 # to Cupertino), so this keeps results the same on every machine.
-xcrun simctl location "${UDID}" set 37.3349,-122.0090
+xcrun simctl location "${UDID}" set 37.7749,-122.4194
 
 step "Running the smoke checklist (timeout ${TIMEOUT}s)"
 xcrun simctl launch --console-pty --terminate-running-process "${UDID}" "${BUNDLE_ID}" >"${LOG}" 2>&1 &
