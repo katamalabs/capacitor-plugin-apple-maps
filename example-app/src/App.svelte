@@ -915,7 +915,14 @@
       }
     } catch (err) {
       note = `map error: ${errMsg(err)}`;
+      // A map that never comes up is a failed run, not an empty one.
+      steps = [...steps, { name: 'create', ok: false, detail: errMsg(err) }];
+      console.log(`[smoke] ✗ create: ${errMsg(err)}`);
     }
+    // End marker for scripts/test-example-smoke.sh: a run that stops before this
+    // line (a hang, a crash) is a failure too.
+    const failed = steps.filter((s) => !s.ok).length;
+    console.log(`[smoke] done: ${steps.length - failed} passed, ${failed} failed`);
   });
 
   onDestroy(() => {

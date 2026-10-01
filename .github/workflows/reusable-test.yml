@@ -109,3 +109,29 @@ jobs:
         run: npm ci
       - name: pack, install & build 📦
         run: npm run test:consumer
+
+  # Example-app smoke run: build the example app, launch it on a simulator and run
+  # its on-device checklist inside the real WKWebView (map mounting, camera,
+  # remote icons, snapshots, search). Fails on any ✗ step, or if the run never
+  # reaches its end marker (crash/hang). Some steps need network access.
+  example-smoke:
+    name: Example app smoke run (iOS simulator)
+    runs-on: macos-15
+    steps:
+      - name: checkout 🛒
+        uses: actions/checkout@v7
+      - name: node 24 ❇️
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            example-app/package-lock.json
+      - name: install plugin dependencies 📦
+        run: npm ci
+      - name: install example-app dependencies 📦
+        working-directory: example-app
+        run: npm ci
+      - name: smoke checklist 🔥
+        run: npm run test:smoke
