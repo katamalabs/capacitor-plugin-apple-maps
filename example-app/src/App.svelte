@@ -1,7 +1,16 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { Capacitor } from '@capacitor/core';
-  import { AppleMap, checkPermissions, requestPermissions } from 'capacitor-plugin-apple-maps';
+  import {
+    AppleMap,
+    checkPermissions,
+    geocode,
+    requestPermissions,
+    reverseGeocode,
+    searchAutocomplete,
+    searchPlaces,
+    searchResolve,
+  } from 'capacitor-plugin-apple-maps';
   import { GoogleMap, LatLngBounds, MapType } from '@capacitor/google-maps';
 
   // ── Provider pick ─────────────────────────────────────────────────────────
@@ -28,6 +37,11 @@
   const provider = isIOS ? 'Apple Maps (MapKit)' : 'Google Maps';
 
   const center = { lat: 37.7749, lng: -122.4194 }; // San Francisco
+
+  // A solid magenta 32×32 PNG served over https, for the remote-icon step: the
+  // color is easy to find in snapshot pixels. Any https image of one solid,
+  // unusual color would do.
+  const REMOTE_ICON_URL = 'https://placehold.co/32x32/ff00ff/ff00ff.png';
   const markers = [
     { markerId: 'sf', coordinate: center, title: 'San Francisco', snippet: 'City Hall area' },
     { markerId: 'ggb', coordinate: { lat: 37.8199, lng: -122.4783 }, title: 'Golden Gate Bridge', snippet: '1937' },
@@ -109,27 +123,138 @@
     try {
       const detail = await run();
       steps = [...steps, { name, ok: true, detail }];
+      // Mirrored to the console (Xcode / `simctl launch --console`) so a run can
+      // be read without scrolling the on-screen panel.
+      console.log(`[smoke] ✓ ${name}: ${detail}`);
     } catch (err) {
       steps = [...steps, { name, ok: false, detail: errMsg(err) }];
+      console.log(`[smoke] ✗ ${name}: ${errMsg(err)}`);
     }
   }
 
+  // ── Step assertions ───────────────────────────────────────────────────────
+  // A step should fail when the result is wrong, not only when the call throws:
+  // each check reads something back (camera, bounds, map type, rendered pixels)
+  // and throws with what it saw.
+  function check(condition: boolean, message: string): asserts condition {
+    if (!condition) throw new Error(message);
+  }
+
+  const near = (a: number, b: number, tolerance: number) => Math.abs(a - b) <= tolerance;
+
+  function checkIds(ids: string[], count: number) {
+    check(
+      ids.length === count && ids.every((id) => id.length > 0) && new Set(ids).size === ids.length,
+      `expected ${count} unique id${count === 1 ? '' : 's'}, got ${JSON.stringify(ids)}`,
+    );
+  }
+
+  // The call must reject with this plugin error code.
+  async function checkRejects(run: () => Promise<unknown>, code: string) {
+    try {
+      await run();
+    } catch (err) {
+      const actual = (err as { code?: string }).code;
+      check(actual === code, `expected ${code}, got ${actual ?? errMsg(err)}`);
+      return;
+    }
+    throw new Error(`expected ${code}, but the call resolved`);
+  }
+
+  type Bounds = { southwest: LatLng; northeast: LatLng };
+  type LatLng = { lat: number; lng: number };
+
+  // Whether `p` lies inside `b`, allowing `slack` degrees and a box that crosses
+  // the antimeridian (southwest.lng > northeast.lng).
+  function contains(b: Bounds, p: LatLng, slack = 0) {
+    const { southwest: sw, northeast: ne } = b;
+    const latOk = p.lat >= sw.lat - slack && p.lat <= ne.lat + slack;
+    const lngOk =
+      sw.lng <= ne.lng
+        ? p.lng >= sw.lng - slack && p.lng <= ne.lng + slack
+        : p.lng >= sw.lng - slack || p.lng <= ne.lng + slack;
+    return latOk && lngOk;
+  }
+
+  // Decode a snapshot data URL into a pixel reader (x/y in image pixels).
+  async function readSnapshot(dataUrl: string) {
+    const image = new Image();
+    image.src = dataUrl;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    check(ctx !== null, 'no 2d canvas context');
+    ctx.drawImage(image, 0, 0);
+    return {
+      width: canvas.width,
+      height: canvas.height,
+      // True if any pixel within `radius` of (x, y) passes `test`.
+      anyNear(x: number, y: number, radius: number, test: (r: number, g: number, b: number) => boolean) {
+        const left = Math.max(0, Math.round(x - radius));
+        const top = Math.max(0, Math.round(y - radius));
+        const size = radius * 2 + 1;
+        const { data } = ctx.getImageData(left, top, size, size);
+        for (let i = 0; i < data.length; i += 4) {
+          if (test(data[i], data[i + 1], data[i + 2])) return true;
+        }
+        return false;
+      },
+    };
+  }
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  // Great-circle distance in km (haversine).
+  function distanceKm(a: LatLng, b: LatLng) {
+    const rad = Math.PI / 180;
+    const dLat = (b.lat - a.lat) * rad;
+    const dLng = (b.lng - a.lng) * rad;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+    return 2 * 6371 * Math.asin(Math.sqrt(h));
+  }
+
   // ── iOS smoke sequence ──────────────────────────────────────────────────
-  // Touch each new AppleMap method once and report the outcome, keeping any
-  // overlay ids for later cleanup.
-  async function runAppleSmokeSequence(am: AppleMap) {
+  // Touch each AppleMap method and check the outcome where it can be read back,
+  // keeping any overlay ids for later cleanup. Steps that only prove a call
+  // resolved (no read-back exists) say so in their detail text.
+  async function runAppleSmokeSequence(am: AppleMap, markerIds: string[]) {
+    await step('addMarkers ids', async () => {
+      // Caller-supplied markerIds are echoed back verbatim, in order.
+      const expected = markers.map((m) => m.markerId);
+      check(
+        JSON.stringify(markerIds) === JSON.stringify(expected),
+        `expected ${expected.join(',')}, got ${markerIds.join(',')}`,
+      );
+      return `${markerIds.length} ids`;
+    });
+
     await step('getCameraPosition', async () => {
       const pos = await am.getCameraPosition();
+      check(
+        near(pos.latitude, center.lat, 0.001) && near(pos.longitude, center.lng, 0.001),
+        `camera at ${pos.latitude.toFixed(4)},${pos.longitude.toFixed(4)}, expected the create center`,
+      );
+      check(near(pos.zoom, 11, 0.5), `zoom ${pos.zoom.toFixed(2)}, expected ~11`);
+      check(contains(pos.bounds, center), 'reported bounds do not contain the center');
       return `zoom ${pos.zoom.toFixed(1)}, bearing ${pos.bearing.toFixed(0)}°, tilt ${pos.angle.toFixed(0)}°`;
     });
 
-    await step('getMapType', async () => {
-      return await am.getMapType();
+    await step('setMapType + getMapType', async () => {
+      check((await am.getMapType()) === 'standard', 'initial map type is not standard');
+      await am.setMapType('hybrid');
+      const switched = await am.getMapType();
+      await am.setMapType('standard');
+      check(switched === 'hybrid', `read back ${switched} after setting hybrid`);
+      check((await am.getMapType()) === 'standard', 'did not switch back to standard');
+      return 'standard → hybrid → standard';
     });
 
     await step('checkPermissions', async () => {
       // Read-only — never prompts. requestPermissions() is wired to "My location".
       const status = await checkPermissions();
+      check(['prompt', 'granted', 'denied'].includes(status.location), `unexpected state ${status.location}`);
       return `location: ${status.location}`;
     });
 
@@ -137,8 +262,9 @@
       const ids = await am.addPolylines([
         { path: markers.map((m) => m.coordinate), strokeColor: '#2563eb', strokeWeight: 4, strokeOpacity: 0.9 },
       ]);
+      checkIds(ids, 1);
       overlayIds = [...overlayIds, ...ids];
-      return `${ids.length} id${ids.length === 1 ? '' : 's'}`;
+      return '1 id';
     });
 
     await step('addPolygons', async () => {
@@ -151,27 +277,33 @@
           fillOpacity: 0.2,
         },
       ]);
+      checkIds(ids, 1);
       overlayIds = [...overlayIds, ...ids];
-      return `${ids.length} id${ids.length === 1 ? '' : 's'}`;
+      return '1 id';
     });
 
     await step('addCircles', async () => {
       const ids = await am.addCircles([
         { center, radius: 1500, strokeColor: '#2563eb', fillColor: '#3b82f6', fillOpacity: 0.2 },
       ]);
+      checkIds(ids, 1);
       overlayIds = [...overlayIds, ...ids];
-      return `${ids.length} id${ids.length === 1 ? '' : 's'}`;
+      return '1 id';
     });
 
     await step('fitBounds', async () => {
       // Exercise the coordinate-array overload: pass the raw pins and let the
-      // wrapper compute the bounding box.
+      // wrapper compute the bounding box. Not animated, so the read-back below
+      // sees the final framing.
       await am.fitBounds(
         markers.map((m) => m.coordinate),
         48,
-        true,
+        false,
       );
-      return 'ok';
+      const bounds = await am.getMapBounds();
+      const outside = markers.filter((m) => !contains(bounds, m.coordinate));
+      check(outside.length === 0, `not in view: ${outside.map((m) => m.markerId).join(', ')}`);
+      return 'every pin in view';
     });
 
     await step('addMarker + removeMarker', async () => {
@@ -179,21 +311,34 @@
         coordinate: { lat: center.lat - 0.02, lng: center.lng - 0.02 },
         title: 'Temp pin',
       });
+      checkIds([id], 1);
+      // selectMarker resolves only for a marker the map knows about.
+      await am.selectMarker(id);
+      await am.deselectMarker();
       await am.removeMarker(id);
-      return `id ${id.slice(0, 8)}…`;
+      await checkRejects(() => am.selectMarker(id), 'MARKER_NOT_FOUND');
+      return `id ${id.slice(0, 8)}… added, then gone`;
+    });
+
+    await step('selectMarker rejects unknown id', async () => {
+      await checkRejects(() => am.selectMarker('no-such-marker'), 'MARKER_NOT_FOUND');
+      return 'MARKER_NOT_FOUND';
     });
 
     await step('updateMarkers', async () => {
       await am.updateMarkers([
         { markerId: 'sf', coordinate: { lat: center.lat + 0.01, lng: center.lng }, title: 'San Francisco (moved)' },
       ]);
-      return 'ok';
+      await am.selectMarker('sf');
+      await am.deselectMarker();
+      return 'resolved (position not readable)';
     });
 
     await step('appearance toggles', async () => {
       // Touch each appearance setter once, then restore the visible defaults so
       // the map looks normal after the smoke run (compass on, POI on, standard
       // color scheme). Scale is left on so the config vs runtime paths differ.
+      // None of these has a getter, so this only proves the calls resolve.
       await am.setTrafficEnabled(true);
       await am.setPointsOfInterestEnabled(false);
       await am.setCompassEnabled(false);
@@ -203,7 +348,7 @@
       await am.setCompassEnabled(true);
       await am.setPointsOfInterestEnabled(true);
       await am.setTrafficEnabled(false);
-      return 'traffic/POI/compass/scale/colorScheme';
+      return 'resolved (no getters)';
     });
 
     await step('draggable toggle', async () => {
@@ -212,35 +357,47 @@
       // so the on-device tester drags the pin and watches the `note` line.
       await am.updateMarkers([{ markerId: 'wharf', draggable: false }]);
       await am.updateMarkers([{ markerId: 'wharf', draggable: true }]);
-      return 'wharf drag-and-drop ready';
+      return 'resolved; drag the wharf pin by hand';
     });
 
     await step('gestures + padding', async () => {
       // Disable rotate/pitch, keep pan+zoom, and inset the map so the controls
-      // clear the header; then restore full gestures.
+      // clear the header; then restore full gestures. No getters exist.
       await am.setGestures({ rotate: false, pitch: false });
       await am.setPadding({ top: 8, left: 8, right: 8, bottom: 8 });
       await am.setGestures({ scroll: true, zoom: true, rotate: true, pitch: true });
-      return 'ok';
+      return 'resolved (no getters)';
     });
 
     await step('setCamera bearing/tilt', async () => {
-      // Rotate + tilt the camera (0.6.0), then reset to north-up / top-down.
-      await am.setCamera({ coordinate: center, zoom: 12, bearing: 45, angle: 30, animate: true });
-      await am.setCamera({ coordinate: center, zoom: 12, bearing: 0, angle: 0, animate: true });
-      return 'rotate 45° / tilt 30° → reset';
+      // Rotate + tilt the camera, read it back, then reset to north-up / top-down.
+      await am.setCamera({ coordinate: center, zoom: 15, bearing: 45, angle: 30, animate: false });
+      const turned = await am.getCameraPosition();
+      await am.setCamera({ coordinate: center, zoom: 12, bearing: 0, angle: 0, animate: false });
+      const reset = await am.getCameraPosition();
+      check(
+        near(reset.latitude, center.lat, 0.001) && near(reset.longitude, center.lng, 0.001),
+        `camera at ${reset.latitude.toFixed(4)},${reset.longitude.toFixed(4)} after setCamera`,
+      );
+      check(near(turned.bearing, 45, 1), `bearing ${turned.bearing.toFixed(1)}, expected 45`);
+      check(near(turned.angle, 30, 1), `tilt ${turned.angle.toFixed(1)}, expected 30`);
+      check(near(reset.bearing, 0, 1) || near(reset.bearing, 360, 1), `reset bearing ${reset.bearing.toFixed(1)}`);
+      check(near(reset.angle, 0, 1), `reset tilt ${reset.angle.toFixed(1)}`);
+      return '45°/30° → 0°/0°';
     });
 
     await step('marker style (opacity/tint/z)', async () => {
-      // Opacity applies to any marker; tint recolors the default pin (0.6.0).
-      await am.updateMarkers([{ markerId: 'sf', opacity: 0.5, tintColor: { r: 220, g: 40, b: 40, a: 255 }, zIndex: 10 }]);
+      // Opacity applies to any marker; tint recolors the default pin. No getter.
+      await am.updateMarkers([
+        { markerId: 'sf', opacity: 0.5, tintColor: { r: 220, g: 40, b: 40, a: 255 }, zIndex: 10 },
+      ]);
       await am.updateMarkers([{ markerId: 'sf', opacity: 1, tintColor: null, zIndex: 0 }]);
-      return 'ok';
+      return 'resolved (no getter)';
     });
 
     await step('dashed + geodesic polyline', async () => {
-      // A great-circle SF→NYC line, dashed (0.7.0). Geodesic curvature is visible
-      // over this distance where a straight screen line would not be.
+      // A great-circle SF→NYC line, dashed. Geodesic curvature is visible over
+      // this distance where a straight screen line would not be.
       const ids = await am.addPolylines([
         {
           path: [center, { lat: 40.7128, lng: -74.006 }],
@@ -250,49 +407,147 @@
           geodesic: true,
         },
       ]);
+      checkIds(ids, 1);
       overlayIds = [...overlayIds, ...ids];
-      return `${ids.length} id (SF→NYC)`;
+      return '1 id (SF→NYC)';
     });
 
     await step('clustering toggle', async () => {
-      // The SF trio clusters from create; toggle off and back on with a min size (0.6.0).
+      // The SF trio clusters from create; toggle off and back on with a min size.
       await am.disableClustering();
       await am.enableClustering(2);
-      return 'off → on (min 2)';
+      return 'resolved (off → on, min 2)';
     });
 
     await step('selectMarker + deselectMarker', async () => {
-      // Programmatically open the standalone pin's info window, then close it (0.7.0).
+      // Programmatically open the standalone pin's info window, then close it.
       await am.selectMarker('info-demo');
       await am.deselectMarker();
       return 'ok';
     });
 
     await step('setCameraBoundary', async () => {
-      // Restrict panning to the marker box, then clear the restriction (0.7.0).
-      await am.setCameraBoundary(markerBounds());
+      // With a boundary set, moving the camera far outside it must leave the
+      // center inside; once cleared, the same move must go through.
+      const box = markerBounds();
+      const nyc = { lat: 40.7128, lng: -74.006 };
+      await am.setCameraBoundary(box);
+      await am.setCamera({ coordinate: nyc, zoom: 12, animate: false });
+      const held = await am.getCameraPosition();
       await am.setCameraBoundary(null);
-      return 'set → clear';
+      await am.setCamera({ coordinate: nyc, zoom: 12, animate: false });
+      const freed = await am.getCameraPosition();
+      await am.setCamera({ coordinate: center, zoom: 12, animate: false });
+      const heldAt = { lat: held.latitude, lng: held.longitude };
+      check(
+        contains(box, heldAt, 0.01),
+        `center escaped the boundary: ${heldAt.lat.toFixed(3)},${heldAt.lng.toFixed(3)}`,
+      );
+      check(near(freed.latitude, nyc.lat, 0.05) && near(freed.longitude, nyc.lng, 0.05), 'cleared boundary still held');
+      return 'held → cleared';
     });
 
     await step('buildings toggle', async () => {
       await am.setBuildingsEnabled(false);
       await am.setBuildingsEnabled(true);
-      return 'off → on';
+      return 'resolved (no getter)';
     });
 
     await step('user tracking', async () => {
       // Show the native recenter/follow button; 'follow' needs location permission
-      // to actually move the camera but is harmless without it (0.7.0).
+      // to actually move the camera but is harmless without it.
       await am.setUserTrackingButtonVisible(true);
       await am.setUserTrackingMode('follow');
       await am.setUserTrackingMode('none');
-      return 'button shown; follow → none';
+      return 'resolved (button shown; follow → none)';
     });
 
     await step('takeSnapshot', async () => {
       const image = await am.takeSnapshot();
-      return image.startsWith('data:image/png;base64,') ? `${Math.round(image.length / 1024)} KB` : 'unexpected';
+      check(image.startsWith('data:image/png;base64,'), 'not a PNG data URL');
+      const pixels = await readSnapshot(image);
+      const rect = element!.getBoundingClientRect();
+      const expected = rect.width / rect.height;
+      const actual = pixels.width / pixels.height;
+      check(near(actual, expected, expected * 0.03), `aspect ${actual.toFixed(3)}, map is ${expected.toFixed(3)}`);
+      return `${pixels.width}×${pixels.height}, ${Math.round(image.length / 1024)} KB`;
+    });
+
+    await step('remote icon (shared url)', async () => {
+      // Two pins sharing one https icon, both on screen while it downloads: every
+      // pin using the url must get the image, not just the first to request it.
+      // Read back from snapshot pixels at each pin. Needs network.
+      const spot = { lat: 37.72, lng: -122.47 }; // clear of the other pins
+      const offset = 0.01; // pins sit this many degrees either side of the center
+      await am.disableClustering();
+      await am.setCamera({ coordinate: spot, zoom: 14, bearing: 0, angle: 0, animate: false });
+      const ids = await am.addMarkers(
+        [-offset, offset].map((d, i) => ({
+          markerId: `remote-${i}`,
+          coordinate: { lat: spot.lat, lng: spot.lng + d },
+          iconUrl: REMOTE_ICON_URL,
+          iconSize: { width: 32, height: 32 },
+          iconAnchor: { x: 0.5, y: 0.5 },
+        })),
+      );
+      try {
+        const bounds = await am.getMapBounds();
+        const span = bounds.northeast.lng - bounds.southwest.lng;
+        const isMagenta = (r: number, g: number, b: number) => r > 200 && g < 80 && b > 200;
+        let found: boolean[] = [false, false];
+        for (let attempt = 0; attempt < 16 && !found.every(Boolean); attempt++) {
+          await sleep(500);
+          const pixels = await readSnapshot(await am.takeSnapshot());
+          found = [-offset, offset].map((d) => {
+            const x = ((spot.lng + d - bounds.southwest.lng) / span) * pixels.width;
+            return pixels.anyNear(x, pixels.height / 2, 6, isMagenta);
+          });
+        }
+        check(found.every(Boolean), `icon drawn on pins: ${found.map((f, i) => `${i}:${f ? 'yes' : 'no'}`).join(' ')}`);
+        return 'both pins show the downloaded icon';
+      } finally {
+        await am.removeMarkers(ids);
+        await am.enableClustering(2);
+        await am.setCamera({ coordinate: center, zoom: 12, animate: false });
+      }
+    });
+
+    // ── Search + geocoding (network) ──
+    const searchRegion = { latitude: center.lat, longitude: center.lng, latitudeDelta: 0.2, longitudeDelta: 0.2 };
+
+    await step('geocode', async () => {
+      // CLGeocoder matches addresses, not landmark names: City Hall's street address.
+      const address = '1 Dr Carlton B Goodlett Pl, San Francisco, CA 94102';
+      const result = await geocode({ address });
+      check(result.latitude !== undefined && result.longitude !== undefined, `no match for "${address}"`);
+      check(near(result.latitude, center.lat, 0.05) && near(result.longitude, center.lng, 0.05), 'not near City Hall');
+      return `${result.latitude.toFixed(4)},${result.longitude.toFixed(4)}`;
+    });
+
+    await step('reverseGeocode', async () => {
+      const result = await reverseGeocode({ latitude: center.lat, longitude: center.lng });
+      check(result.locality === 'San Francisco', `locality ${result.locality ?? '(none)'}`);
+      return result.address ?? result.locality;
+    });
+
+    await step('searchPlaces', async () => {
+      // `region` only biases MapKit (it can still answer near the device's own
+      // location); `maxDistanceKm` is the filter, so that's what is checked.
+      const maxKm = 15;
+      const { results } = await searchPlaces({ query: 'coffee', region: searchRegion, maxDistanceKm: maxKm, limit: 5 });
+      check(results.length >= 1 && results.length <= 5, `${results.length} results, expected 1–5`);
+      const far = results.filter((r) => distanceKm(center, { lat: r.latitude, lng: r.longitude }) > maxKm);
+      check(far.length === 0, `farther than ${maxKm} km: ${far.map((r) => r.title).join(', ')}`);
+      return `${results.length} results, e.g. ${results[0].title}`;
+    });
+
+    await step('searchAutocomplete + searchResolve', async () => {
+      const { results } = await searchAutocomplete({ query: 'Golden Gate Park', region: searchRegion });
+      check(results.length > 0, 'no suggestions');
+      const place = await searchResolve({ id: results[0].id });
+      check(place.lat !== undefined && place.lng !== undefined, 'suggestion did not resolve to coordinates');
+      check(near(place.lat, center.lat, 0.3) && near(place.lng, center.lng, 0.3), 'resolved outside the Bay Area');
+      return `${results[0].title} → ${place.lat.toFixed(3)},${place.lng.toFixed(3)}`;
     });
   }
 
@@ -311,8 +566,9 @@
       const ids = await gm.addPolylines([
         { path: markers.map((m) => m.coordinate), strokeColor: '#2563eb', strokeWeight: 4, strokeOpacity: 0.9 },
       ]);
+      checkIds(ids, 1);
       googleOverlays = { ...googleOverlays, polylines: [...googleOverlays.polylines, ...ids] };
-      return `${ids.length} id${ids.length === 1 ? '' : 's'}`;
+      return '1 id';
     });
 
     await step('addPolygons', async () => {
@@ -325,16 +581,18 @@
           fillOpacity: 0.2,
         },
       ]);
+      checkIds(ids, 1);
       googleOverlays = { ...googleOverlays, polygons: [...googleOverlays.polygons, ...ids] };
-      return `${ids.length} id${ids.length === 1 ? '' : 's'}`;
+      return '1 id';
     });
 
     await step('addCircles', async () => {
       const ids = await gm.addCircles([
         { center, radius: 1500, strokeColor: '#2563eb', fillColor: '#3b82f6', fillOpacity: 0.2 },
       ]);
+      checkIds(ids, 1);
       googleOverlays = { ...googleOverlays, circles: [...googleOverlays.circles, ...ids] };
-      return `${ids.length} id${ids.length === 1 ? '' : 's'}`;
+      return '1 id';
     });
 
     await step('fitBounds', async () => {
@@ -348,6 +606,7 @@
         coordinate: { lat: center.lat - 0.02, lng: center.lng - 0.02 },
         title: 'Temp pin',
       });
+      checkIds([id], 1);
       await gm.removeMarker(id);
       return `id ${id.slice(0, 8)}…`;
     });
@@ -553,7 +812,7 @@
         map = appleMap;
 
         // No iconUrl needed — each provider draws its own default pin.
-        await appleMap.addMarkers(markers);
+        const markerIds = await appleMap.addMarkers(markers);
 
         // Report every gesture through the single `note` string.
         await appleMap.setOnMarkerClickListener((data) => {
@@ -603,7 +862,7 @@
         });
 
         // Kick off the automatic smoke sequence.
-        await runAppleSmokeSequence(appleMap);
+        await runAppleSmokeSequence(appleMap, markerIds);
       } else {
         googleMap = await GoogleMap.create({
           id: 'map',
@@ -668,7 +927,14 @@
       }
     } catch (err) {
       note = `map error: ${errMsg(err)}`;
+      // A map that never comes up is a failed run, not an empty one.
+      steps = [...steps, { name: 'create', ok: false, detail: errMsg(err) }];
+      console.log(`[smoke] ✗ create: ${errMsg(err)}`);
     }
+    // End marker for scripts/test-example-smoke.sh: a run that stops before this
+    // line (a hang, a crash) is a failure too.
+    const failed = steps.filter((s) => !s.ok).length;
+    console.log(`[smoke] done: ${steps.length - failed} passed, ${failed} failed`);
   });
 
   onDestroy(() => {
@@ -751,8 +1017,7 @@
     display: flex;
     flex-direction: column;
     height: 100dvh;
-    font-family:
-      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
   header {
     padding: max(env(safe-area-inset-top), 14px) 16px 12px;

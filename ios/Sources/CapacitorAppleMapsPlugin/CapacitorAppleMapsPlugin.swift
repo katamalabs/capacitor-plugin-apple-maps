@@ -69,9 +69,9 @@ public class CapacitorAppleMapsPlugin: CAPPlugin, CAPBridgedPlugin, MKMapViewDel
     // Permissions.swift. The manager is created lazily on first use so a plugin
     // that never touches location never instantiates one.
     var locationManager: CLLocationManager?
-    /// Callback id of the in-flight `requestPermissions` call, held while the
-    /// system prompt is up so the delegate can resolve it once the user answers.
-    var permissionCallID: String?
+    /// `requestPermissions` calls waiting on the system prompt, resolved together
+    /// by the delegate once the user answers. Main thread only.
+    var pendingPermissionCalls: [CAPPluginCall] = []
 
     // MARK: - App lifecycle
 
@@ -117,10 +117,29 @@ public class CapacitorAppleMapsPlugin: CAPPlugin, CAPBridgedPlugin, MKMapViewDel
                 maps.removeValue(forKey: id)?.destroy()
             }
 
+            // Resolve only once the native map is actually in the view tree, so a
+            // map that can't mount is a rejected create(), not a blank one.
             runOnMainSync {
-                self.maps[id] = Map(id: id, config: config, delegate: self)
+                var created: Map?
+                created = Map(id: id, config: config, delegate: self) { [weak self] outcome in
+                    switch outcome {
+                    case .mounted:
+                        call.resolve()
+                    case .containerNotFound:
+                        if let self = self, let map = created, self.maps[id] === map {
+                            self.maps.removeValue(forKey: id)
+                            map.destroy()
+                        }
+                        call.reject("Could not mount the map: no web view container matched the element. "
+                                        + "Make sure it is visible and has a non-zero size.",
+                                    PluginError.mountFailed)
+                    case .destroyed:
+                        call.reject("The map was destroyed before it finished mounting.", PluginError.mountFailed)
+                    }
+                    created = nil
+                }
+                self.maps[id] = created
             }
-            call.resolve()
         } catch {
             call.reject(error.localizedDescription, PluginError.operationFailed, error)
         }

@@ -2,6 +2,14 @@ name: Reusable Tests
 
 on:
   workflow_call:
+    inputs:
+      integration:
+        # The slow macOS jobs (consumer install, example-app smoke run). Off for
+        # pull requests to keep them quick; on for main, release tags, and manual
+        # runs of the test workflow.
+        description: Also run the consumer-install and example-app smoke jobs
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -29,6 +37,43 @@ jobs:
         run: npm run test:web
       - name: build 📦
         run: npm run build
+      - name: import without a DOM 🧩
+        # The package must be importable during SSR / in Node, where
+        # HTMLElement and customElements don't exist.
+        run: node -e 'require("./dist/plugin.cjs.js")'
+
+  # Example app: format check, type-check the Svelte sources and make a production build
+  # against the freshly built plugin (it depends on it via `file:..`).
+  example-app:
+    name: Example app (check + build)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout 🛒
+        uses: actions/checkout@v7
+      - name: node 24 ❇️
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            example-app/package-lock.json
+      - name: install plugin dependencies 📦
+        run: npm ci
+      - name: build plugin 📦
+        run: npm run build
+      - name: install example-app dependencies 📦
+        working-directory: example-app
+        run: npm ci
+      - name: prettier ✨
+        working-directory: example-app
+        run: npm run format:check
+      - name: svelte-check 🔍
+        working-directory: example-app
+        run: npm run check
+      - name: build example app 🏗️
+        working-directory: example-app
+        run: npm run build
 
   # Native iOS: SwiftLint plus an Xcode build and unit-test run on a simulator.
   # Must run on macOS — Ubuntu has no Xcode/MapKit.
@@ -52,3 +97,53 @@ jobs:
         continue-on-error: true
       - name: build & unit test 🧪
         run: npm run test:ios
+
+  # Consumer install: pack the plugin, install the tarball into a fresh Capacitor
+  # app, type-check against the published declarations, and build the iOS app
+  # with both SPM and CocoaPods. Catches packaging and integration breaks the
+  # in-repo tests can't see. CocoaPods is preinstalled on the macOS runner.
+  consumer:
+    name: Consumer install (SPM + CocoaPods)
+    if: inputs.integration
+    runs-on: macos-15
+    steps:
+      - name: checkout 🛒
+        uses: actions/checkout@v7
+      - name: node 24 ❇️
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: 'npm'
+      - name: install dependencies 📦
+        run: npm ci
+      - name: pack, install & build 📦
+        run: npm run test:consumer
+
+  # Example-app smoke run: build the example app, launch it on a simulator and run
+  # its on-device checklist inside the real WKWebView (map mounting, camera,
+  # remote icons, snapshots, search). Fails on any ✗ step, or if the run never
+  # reaches its end marker (crash/hang). Some steps need network access.
+  example-smoke:
+    name: Example app smoke run (iOS simulator)
+    if: inputs.integration
+    runs-on: macos-15
+    # The script bounds its own waits; this is the backstop against a hang.
+    timeout-minutes: 30
+    steps:
+      - name: checkout 🛒
+        uses: actions/checkout@v7
+      - name: node 24 ❇️
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            example-app/package-lock.json
+      - name: install plugin dependencies 📦
+        run: npm ci
+      - name: install example-app dependencies 📦
+        working-directory: example-app
+        run: npm ci
+      - name: smoke checklist 🔥
+        run: npm run test:smoke

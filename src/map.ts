@@ -48,23 +48,31 @@ export interface CreateMapArgs {
  * inner box so WKWebView materialises a child scroll view at the element's
  * dimensions - the native MapKit view is inserted into that subview. This is
  * the same compositing trick `@capacitor/google-maps` uses.
+ *
+ * The class is declared inside the guard, not at module scope: `extends
+ * HTMLElement` is evaluated as soon as the class is, so a top-level declaration
+ * would make merely importing the package throw where there is no DOM (SSR, Node).
  */
-class MapCustomElement extends HTMLElement {
-  connectedCallback(): void {
-    this.innerHTML = '';
-    if (Capacitor.getPlatform() === 'ios') {
-      this.style.overflow = 'scroll';
-      (this.style as unknown as Record<string, string>)['-webkit-overflow-scrolling'] = 'touch';
-      const overflowDiv = document.createElement('div');
-      overflowDiv.style.height = '200%';
-      this.appendChild(overflowDiv);
+function defineMapCustomElement(): void {
+  if (typeof customElements === 'undefined' || customElements.get('capacitor-apple-map')) return;
+
+  class MapCustomElement extends HTMLElement {
+    connectedCallback(): void {
+      this.innerHTML = '';
+      if (Capacitor.getPlatform() === 'ios') {
+        this.style.overflow = 'scroll';
+        (this.style as unknown as Record<string, string>)['-webkit-overflow-scrolling'] = 'touch';
+        const overflowDiv = document.createElement('div');
+        overflowDiv.style.height = '200%';
+        this.appendChild(overflowDiv);
+      }
     }
   }
-}
 
-if (typeof customElements !== 'undefined' && !customElements.get('capacitor-apple-map')) {
   customElements.define('capacitor-apple-map', MapCustomElement);
 }
+
+defineMapCustomElement();
 
 /**
  * High-level handle to a native Apple Map. Create one with {@link AppleMap.create};
@@ -92,11 +100,18 @@ export class AppleMap {
   private onMarkerDragStartListener?: PluginListenerHandle;
   private onMarkerDragListener?: PluginListenerHandle;
   private onMarkerDragEndListener?: PluginListenerHandle;
+  private onMapReadyListener?: PluginListenerHandle;
 
   private constructor(id: string) {
     this.id = id;
   }
 
+  /**
+   * Create a map bound to `options.element`. Resolves once the native map is
+   * mounted. Rejects with code `MOUNT_FAILED` if no web-view container for the
+   * element appears within about a second (usually a hidden or zero-sized
+   * element); nothing is left behind to clean up in that case.
+   */
   static async create(options: CreateMapArgs): Promise<AppleMap> {
     const newMap = new AppleMap(options.id);
 
@@ -155,16 +170,26 @@ export class AppleMap {
     // Short settle so iOS WKWebView has materialised the element's child scroll
     // view (created off the `overflow: scroll` its connectedCallback set) before
     // the native map attaches to it.
-    await new Promise<void>((resolve, reject) => {
-      setTimeout(async () => {
-        try {
-          await CapacitorAppleMaps.create({ id: options.id, config: options.config, forceCreate: options.forceCreate });
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      }, 200);
-    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        setTimeout(async () => {
+          try {
+            await CapacitorAppleMaps.create({
+              id: options.id,
+              config: options.config,
+              forceCreate: options.forceCreate,
+            });
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        }, 200);
+      });
+    } catch (err) {
+      // The caller never gets a handle to destroy(), so undo the DOM hooks here.
+      newMap.detachDomObservers();
+      throw err;
+    }
 
     return newMap;
   }
@@ -615,22 +640,29 @@ export class AppleMap {
   }
 
   async setOnMapReadyListener(callback?: (data: MapReadyCallbackData) => void): Promise<void> {
+    if (this.onMapReadyListener) {
+      await this.onMapReadyListener.remove();
+      this.onMapReadyListener = undefined;
+    }
     if (callback) {
-      const handle = await CapacitorAppleMaps.addListener('onMapReady', (data) => {
+      this.onMapReadyListener = await CapacitorAppleMaps.addListener('onMapReady', (data) => {
         if (data.mapId === this.id) callback(data);
       });
-      // One-shot; caller does not need the handle.
-      void handle;
     }
   }
 
-  async destroy(): Promise<void> {
+  /** Stop tracking the element's size/position (window listeners + ResizeObserver). */
+  private detachDomObservers(): void {
     if (Capacitor.isNativePlatform()) {
       window.removeEventListener('scroll', this.handleScrollEvent);
       window.removeEventListener('resize', this.handleScrollEvent);
     }
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+  }
+
+  async destroy(): Promise<void> {
+    this.detachDomObservers();
     await this.onCameraIdleListener?.remove();
     await this.onCameraMoveStartedListener?.remove();
     await this.onMarkerClickListener?.remove();
@@ -646,6 +678,7 @@ export class AppleMap {
     await this.onMarkerDragListener?.remove();
     await this.onMarkerDragEndListener?.remove();
     await this.onInfoWindowClickListener?.remove();
+    await this.onMapReadyListener?.remove();
     this.onCameraIdleListener = undefined;
     this.onCameraMoveStartedListener = undefined;
     this.onMarkerClickListener = undefined;
@@ -661,6 +694,7 @@ export class AppleMap {
     this.onMarkerDragListener = undefined;
     this.onMarkerDragEndListener = undefined;
     this.onInfoWindowClickListener = undefined;
+    this.onMapReadyListener = undefined;
     return CapacitorAppleMaps.destroy({ id: this.id });
   }
 }

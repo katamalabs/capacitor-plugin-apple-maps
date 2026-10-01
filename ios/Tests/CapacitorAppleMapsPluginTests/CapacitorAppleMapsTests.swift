@@ -58,31 +58,6 @@ class CapacitorAppleMapsTests: XCTestCase {
         XCTAssertEqual(clampZoom(12.0, minZoom: 18.0, maxZoom: 7.0), 7.0)
     }
 
-    // MARK: - fitBounds framing rect
-
-    func testBoundingMapRectContainsBothCorners() {
-        let southWest = CLLocationCoordinate2D(latitude: 41.0, longitude: -73.0)
-        let northEast = CLLocationCoordinate2D(latitude: 43.0, longitude: -69.0)
-        let rect = boundingMapRect(southwest: southWest, northeast: northEast)
-        XCTAssertTrue(rect.contains(MKMapPoint(southWest)))
-        XCTAssertTrue(rect.contains(MKMapPoint(northEast)))
-        XCTAssertGreaterThan(rect.size.width, 0)
-        XCTAssertGreaterThan(rect.size.height, 0)
-    }
-
-    /// The rect is orientation-independent: swapping the corners yields the same
-    /// rect (latitude grows north but MKMapPoint.y grows south).
-    func testBoundingMapRectIsOrientationIndependent() {
-        let southWest = CLLocationCoordinate2D(latitude: 41.0, longitude: -73.0)
-        let northEast = CLLocationCoordinate2D(latitude: 43.0, longitude: -69.0)
-        let rect = boundingMapRect(southwest: southWest, northeast: northEast)
-        let swapped = boundingMapRect(southwest: northEast, northeast: southWest)
-        XCTAssertEqual(rect.origin.x, swapped.origin.x, accuracy: 1e-6)
-        XCTAssertEqual(rect.origin.y, swapped.origin.y, accuracy: 1e-6)
-        XCTAssertEqual(rect.size.width, swapped.size.width, accuracy: 1e-6)
-        XCTAssertEqual(rect.size.height, swapped.size.height, accuracy: 1e-6)
-    }
-
     // MARK: - Marker payload parsing
 
     func testMakeMarkerReadsAllFields() {
@@ -171,19 +146,6 @@ class CapacitorAppleMapsTests: XCTestCase {
         XCTAssertNotNil(raw, "getArray returned nil for a string array")
         XCTAssertEqual(raw?.compactMap { $0 as? String }, ["a", "b", "c"])
         XCTAssertNotNil(call.getArray("ids") as? [String], "whole-array cast returned nil")
-    }
-
-    // MARK: - Region corners (visible bounds math)
-
-    func testRegionCorners() {
-        let center = CLLocationCoordinate2D(latitude: 42.0, longitude: -71.0)
-        let span = MKCoordinateSpan(latitudeDelta: 2.0, longitudeDelta: 4.0)
-        let corners = regionCorners(center: center, span: span)
-
-        XCTAssertEqual(corners.southwest.latitude, 41.0, accuracy: 1e-9)
-        XCTAssertEqual(corners.southwest.longitude, -73.0, accuracy: 1e-9)
-        XCTAssertEqual(corners.northeast.latitude, 43.0, accuracy: 1e-9)
-        XCTAssertEqual(corners.northeast.longitude, -69.0, accuracy: 1e-9)
     }
 
     // MARK: - Config parsing

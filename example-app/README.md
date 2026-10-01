@@ -49,8 +49,8 @@ npm run ios                                  # build + open Xcode
 
 ### Android / web — Google Maps, needs a key
 
-Google Maps needs an API key (enable *Maps SDK for Android* and *Maps JavaScript
-API* for it). Without one the app shows a hint instead of a map — it never
+Google Maps needs an API key (enable _Maps SDK for Android_ and _Maps JavaScript
+API_ for it). Without one the app shows a hint instead of a map — it never
 crashes.
 
 Set it in **one place**: copy `.env.example` to `.env` and set

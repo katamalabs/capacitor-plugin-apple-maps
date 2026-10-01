@@ -2,6 +2,9 @@ name: test
 
 on:
   pull_request:
+  # "Run workflow" on a branch runs everything, including the slow integration
+  # jobs that pull requests skip.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,3 +16,5 @@ concurrency:
 jobs:
   tests:
     uses: ./.github/workflows/reusable-test.yml
+    with:
+      integration: ${{ github.event_name == 'workflow_dispatch' }}
