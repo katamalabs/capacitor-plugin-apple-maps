@@ -34,7 +34,7 @@ jobs:
         # HTMLElement and customElements don't exist.
         run: node -e 'require("./dist/plugin.cjs.js")'
 
-  # Example app: type-check the Svelte sources and make a production build
+  # Example app: format check, type-check the Svelte sources and make a production build
   # against the freshly built plugin (it depends on it via `file:..`).
   example-app:
     name: Example app (check + build)
@@ -57,6 +57,9 @@ jobs:
       - name: install example-app dependencies 📦
         working-directory: example-app
         run: npm ci
+      - name: prettier ✨
+        working-directory: example-app
+        run: npm run format:check
       - name: svelte-check 🔍
         working-directory: example-app
         run: npm run check
@@ -86,3 +89,23 @@ jobs:
         continue-on-error: true
       - name: build & unit test 🧪
         run: npm run test:ios
+
+  # Consumer install: pack the plugin, install the tarball into a fresh Capacitor
+  # app, type-check against the published declarations, and build the iOS app
+  # with both SPM and CocoaPods. Catches packaging and integration breaks the
+  # in-repo tests can't see. CocoaPods is preinstalled on the macOS runner.
+  consumer:
+    name: Consumer install (SPM + CocoaPods)
+    runs-on: macos-15
+    steps:
+      - name: checkout 🛒
+        uses: actions/checkout@v7
+      - name: node 24 ❇️
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: 'npm'
+      - name: install dependencies 📦
+        run: npm ci
+      - name: pack, install & build 📦
+        run: npm run test:consumer

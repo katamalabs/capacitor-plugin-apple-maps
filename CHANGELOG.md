@@ -46,6 +46,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Snapshots match the live map's overlays.** `takeSnapshot` drew dashed
   polylines, polygons and circles as solid lines and filled polygon holes in;
   it now applies `lineDashPattern` and leaves interior rings unfilled.
+- **Bounds across the antimeridian.** `fitBounds` / `setCameraBoundary` with
+  coordinates either side of ±180° (e.g. Fiji at 178° and -179°) framed a box
+  spanning the rest of the world; they now take the short way round. Bounds
+  follow the `@capacitor/google-maps` convention — `southwest.lng >
+  northeast.lng` means the box crosses the antimeridian — in what
+  `fitBounds`/`setCameraBoundary` accept and in reported visible bounds, whose
+  longitudes are now kept within -180…180. Passing bounds with the longitudes
+  swapped now frames the crossing box rather than the same box as before.
+- **The map now opens exactly on `config.center`.** The create-time camera was
+  applied before the native view was mounted, and the move into the web view's
+  container left the center about 20pt (≈1 km at zoom 11) off. It is now
+  re-applied once the map is mounted.
 
 ## [0.7.1]
 

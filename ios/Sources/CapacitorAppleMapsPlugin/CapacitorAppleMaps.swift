@@ -46,35 +46,6 @@ func clampZoom(_ zoom: Double, minZoom: Double?, maxZoom: Double?) -> Double {
     return result
 }
 
-/// The smallest `MKMapRect` containing both corners, regardless of their relative
-/// orientation (latitude grows north but `MKMapPoint.y` grows south). Pure so the
-/// `fitBounds` framing math can be unit-tested without an `MKMapView`.
-func boundingMapRect(southwest: CLLocationCoordinate2D, northeast: CLLocationCoordinate2D) -> MKMapRect {
-    let swPoint = MKMapPoint(southwest)
-    let nePoint = MKMapPoint(northeast)
-    return MKMapRect(
-        x: min(swPoint.x, nePoint.x),
-        y: min(swPoint.y, nePoint.y),
-        width: abs(swPoint.x - nePoint.x),
-        height: abs(swPoint.y - nePoint.y)
-    )
-}
-
-/// The corner coordinates of a region, used to report the visible bounds to JS.
-/// Pure function so it can be unit-tested without an `MKMapView`.
-func regionCorners(center: CLLocationCoordinate2D, span: MKCoordinateSpan)
--> (southwest: CLLocationCoordinate2D, northeast: CLLocationCoordinate2D) {
-    let southwest = CLLocationCoordinate2D(
-        latitude: center.latitude - span.latitudeDelta / 2,
-        longitude: center.longitude - span.longitudeDelta / 2
-    )
-    let northeast = CLLocationCoordinate2D(
-        latitude: center.latitude + span.latitudeDelta / 2,
-        longitude: center.longitude + span.longitudeDelta / 2
-    )
-    return (southwest, northeast)
-}
-
 // MARK: - Annotation
 //
 // The pin model, `AppleMapMarker`, lives in AppleMapMarker.swift (kept there so

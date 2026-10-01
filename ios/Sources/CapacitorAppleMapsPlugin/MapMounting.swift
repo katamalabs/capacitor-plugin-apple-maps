@@ -52,6 +52,12 @@ extension Map {
         mapView.frame = target.bounds
         mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         target.addSubview(mapView)
+        // render() set the create-time camera while the view still had its
+        // provisional frame; moving into the container keeps that visible area,
+        // which left the center ~20pt off what was asked for. Apply it again now
+        // the view has its real frame. Nothing else can have moved the camera
+        // yet: create() only resolves once this mount finishes.
+        setCameraInternal(coordinate: config.center, zoom: config.zoom, animate: false)
 
         delegate?.notifyListeners("onMapReady", data: ["mapId": id])
         finishMount(.mounted)
@@ -135,8 +141,8 @@ extension Map {
         guard let webView = self.delegate?.bridge?.webView else { return nil }
         for item in webView.getAllSubViews() {
             guard let scrollView = item as? UIScrollView else { continue }
-            let childScrollClass = NSClassFromString("WKChildScrollView")
-            let scrollClass = NSClassFromString("WKScrollView")
+            let childScrollClass: AnyClass? = NSClassFromString("WKChildScrollView")
+            let scrollClass: AnyClass? = NSClassFromString("WKScrollView")
             let isChildScroll = (childScrollClass.map { item.isKind(of: $0) } ?? false)
                 || (scrollClass.map { item.isKind(of: $0) } ?? false)
             let isBridgeScroll = item.isEqual(webView.scrollView)

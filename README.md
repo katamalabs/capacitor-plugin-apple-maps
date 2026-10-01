@@ -1284,7 +1284,10 @@ Omitted sides default to `0`.
 
 #### LatLngBounds
 
-Visible-region bounds, mirroring the `@capacitor/google-maps` shape.
+Visible-region bounds, mirroring the `@capacitor/google-maps` shape. A box
+that crosses the antimeridian has `southwest.lng &gt; northeast.lng` (e.g. 178
+to -179 is a 3-degree box), both when the plugin reports bounds and when you
+pass them to `fitBounds` / `setCameraBoundary`.
 
 | Prop            | Type                                      |
 | --------------- | ----------------------------------------- |
