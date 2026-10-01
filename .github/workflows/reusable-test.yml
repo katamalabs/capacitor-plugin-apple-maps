@@ -2,6 +2,14 @@ name: Reusable Tests
 
 on:
   workflow_call:
+    inputs:
+      integration:
+        # The slow macOS jobs (consumer install, example-app smoke run). Off for
+        # pull requests to keep them quick; on for main, release tags, and manual
+        # runs of the test workflow.
+        description: Also run the consumer-install and example-app smoke jobs
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -96,6 +104,7 @@ jobs:
   # in-repo tests can't see. CocoaPods is preinstalled on the macOS runner.
   consumer:
     name: Consumer install (SPM + CocoaPods)
+    if: inputs.integration
     runs-on: macos-15
     steps:
       - name: checkout 🛒
@@ -116,7 +125,10 @@ jobs:
   # reaches its end marker (crash/hang). Some steps need network access.
   example-smoke:
     name: Example app smoke run (iOS simulator)
+    if: inputs.integration
     runs-on: macos-15
+    # The script bounds its own waits; this is the backstop against a hang.
+    timeout-minutes: 30
     steps:
       - name: checkout 🛒
         uses: actions/checkout@v7

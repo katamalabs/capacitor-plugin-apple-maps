@@ -206,6 +206,15 @@
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  // Great-circle distance in km (haversine).
+  function distanceKm(a: LatLng, b: LatLng) {
+    const rad = Math.PI / 180;
+    const dLat = (b.lat - a.lat) * rad;
+    const dLng = (b.lng - a.lng) * rad;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+    return 2 * 6371 * Math.asin(Math.sqrt(h));
+  }
+
   // ── iOS smoke sequence ──────────────────────────────────────────────────
   // Touch each AppleMap method and check the outcome where it can be read back,
   // keeping any overlay ids for later cleanup. Steps that only prove a call
@@ -522,10 +531,13 @@
     });
 
     await step('searchPlaces', async () => {
-      const { results } = await searchPlaces({ query: 'coffee', region: searchRegion, limit: 5 });
+      // `region` only biases MapKit (it can still answer near the device's own
+      // location); `maxDistanceKm` is the filter, so that's what is checked.
+      const maxKm = 15;
+      const { results } = await searchPlaces({ query: 'coffee', region: searchRegion, maxDistanceKm: maxKm, limit: 5 });
       check(results.length >= 1 && results.length <= 5, `${results.length} results, expected 1–5`);
-      const far = results.filter((r) => !near(r.latitude, center.lat, 0.3) || !near(r.longitude, center.lng, 0.3));
-      check(far.length === 0, `outside the region: ${far.map((r) => r.title).join(', ')}`);
+      const far = results.filter((r) => distanceKm(center, { lat: r.latitude, lng: r.longitude }) > maxKm);
+      check(far.length === 0, `farther than ${maxKm} km: ${far.map((r) => r.title).join(', ')}`);
       return `${results.length} results, e.g. ${results[0].title}`;
     });
 

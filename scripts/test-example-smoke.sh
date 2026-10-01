@@ -13,6 +13,7 @@
 #   npm run test:smoke
 #   SIMULATOR_UDID=<udid> npm run test:smoke   # pick the simulator
 #   SMOKE_TIMEOUT=600 npm run test:smoke       # seconds to wait for the run (default 300)
+#   BOOT_TIMEOUT=900 npm run test:smoke        # seconds to wait for the simulator to boot (default 600)
 #
 # Some steps (remote icon, geocoding, search) need network access.
 set -euo pipefail
@@ -21,11 +22,14 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_DIR="${ROOT}/example-app"
 BUNDLE_ID="$(node -p "require('${APP_DIR}/capacitor.config.json').appId")"
 TIMEOUT="${SMOKE_TIMEOUT:-300}"
+BOOT_TIMEOUT="${BOOT_TIMEOUT:-600}"
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/apple-maps-smoke.XXXXXX")"
 LOG="${WORK}/console.log"
 LAUNCH_PID=""
+BOOT_PID=""
 cleanup() {
+  [ -n "${BOOT_PID}" ] && kill "${BOOT_PID}" 2>/dev/null || true
   [ -n "${LAUNCH_PID}" ] && kill "${LAUNCH_PID}" 2>/dev/null || true
   [ -n "${UDID:-}" ] && xcrun simctl terminate "${UDID}" "${BUNDLE_ID}" 2>/dev/null || true
   rm -rf "${WORK}"
@@ -47,6 +51,13 @@ if [ -z "${UDID}" ]; then
   exit 1
 fi
 
+# A simulator's first boot on a fresh machine (a CI runner) does one-time setup
+# and can take minutes, so start it now and let it overlap the build.
+step "Booting simulator ${UDID} in the background"
+xcrun simctl boot "${UDID}" 2>/dev/null || true   # already booted is fine
+xcrun simctl bootstatus "${UDID}" -b >"${WORK}/boot.log" 2>&1 &
+BOOT_PID=$!
+
 # --- Build ------------------------------------------------------------------------
 step "Building the plugin and the example app's web bundle"
 (cd "${ROOT}" && npm run build >/dev/null)
@@ -56,16 +67,34 @@ step "Building the iOS app for simulator ${UDID}"
 xcodebuild build \
   -project "${APP_DIR}/ios/App/App.xcodeproj" \
   -scheme App \
-  -destination "platform=iOS Simulator,id=${UDID}" \
+  -destination "platform=iOS Simulator,id=${UDID},arch=$(uname -m)" \
   -derivedDataPath "${WORK}/DerivedData" \
   CODE_SIGNING_ALLOWED=NO -quiet
 APP_PATH="${WORK}/DerivedData/Build/Products/Debug-iphonesimulator/App.app"
 
 # --- Run --------------------------------------------------------------------------
-step "Booting the simulator and installing"
-xcrun simctl boot "${UDID}" 2>/dev/null || true   # already booted is fine
-xcrun simctl bootstatus "${UDID}" -b >/dev/null
+step "Waiting for the simulator to finish booting (timeout ${BOOT_TIMEOUT}s)"
+booted=""
+for _ in $(seq "${BOOT_TIMEOUT}"); do
+  if ! kill -0 "${BOOT_PID}" 2>/dev/null; then
+    wait "${BOOT_PID}" && booted=1
+    BOOT_PID=""   # finished; nothing left for cleanup to kill
+    break
+  fi
+  sleep 1
+done
+if [ -z "${booted}" ]; then
+  echo "FAIL: simulator ${UDID} did not boot within ${BOOT_TIMEOUT}s" >&2
+  tail -n 20 "${WORK}/boot.log" >&2
+  exit 1
+fi
+
+step "Installing the app"
 xcrun simctl install "${UDID}" "${APP_PATH}"
+# Put the simulator in San Francisco, where the checklist's search steps look.
+# MapKit biases search toward the device location (a fresh simulator defaults
+# to Cupertino), so this keeps results the same on every machine.
+xcrun simctl location "${UDID}" set 37.3349,-122.0090
 
 step "Running the smoke checklist (timeout ${TIMEOUT}s)"
 xcrun simctl launch --console-pty --terminate-running-process "${UDID}" "${BUNDLE_ID}" >"${LOG}" 2>&1 &
