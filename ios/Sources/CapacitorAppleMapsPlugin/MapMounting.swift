@@ -10,7 +10,59 @@ import WebKit
 // that keeps the native MKMapView aligned with its bound web element, ported
 // from `@capacitor/google-maps`.
 
+/// How a map's initial mount into the web view ended. Reported once, from the
+/// main thread, to the completion passed to `Map.init`.
+enum MountOutcome {
+    case mounted
+    /// No WKWebView child scroll view matching the element turned up within the
+    /// retry window - the map would have rendered blank and touch-dead.
+    case containerNotFound
+    /// `destroy()` ran before the mount completed.
+    case destroyed
+}
+
 extension Map {
+
+    /// Insert the map into WebKit's child scroll view for the bound element,
+    /// retrying while that view doesn't exist yet. `onMapReady` fires only once the
+    /// map is really in the view tree; if no container turns up the mount fails
+    /// and the caller is told, rather than being handed a blank, touch-dead map.
+    /// Main thread only.
+    func mount(attempt: Int) {
+        guard !isDestroyed else { return }
+        guard let target = getTargetContainer(refWidth: config.width, refHeight: config.height) else {
+            if attempt < Map.mountAttempts {
+                DispatchQueue.main.asyncAfter(deadline: .now() + Map.mountRetryInterval) { [weak self] in
+                    self?.mount(attempt: attempt + 1)
+                }
+            } else {
+                // Depends on WebKit's private child scroll view (see
+                // getTargetContainer); a miss usually means a WebKit view-tree
+                // change, or an element that is hidden / zero-sized.
+                CAPLog.print("[AppleMaps] getTargetContainer found no container to mount into "
+                                + "(ref=\(config.width)x\(config.height)) after \(attempt) attempts; "
+                                + "inspect the WKWebView's scroll views.")
+                finishMount(.containerNotFound)
+            }
+            return
+        }
+        targetView = target
+        target.tag = Map.mapTag
+        target.removeAllSubview()
+        mapView.frame = target.bounds
+        mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        target.addSubview(mapView)
+
+        delegate?.notifyListeners("onMapReady", data: ["mapId": id])
+        finishMount(.mounted)
+    }
+
+    /// Report the mount outcome to the `init` completion, at most once.
+    func finishMount(_ outcome: MountOutcome) {
+        let completion = mountCompletion
+        mountCompletion = nil
+        completion?(outcome)
+    }
 
     func updateRender(mapBounds: CGRect) {
         runOnMainSync {

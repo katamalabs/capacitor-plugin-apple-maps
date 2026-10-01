@@ -183,7 +183,8 @@ export interface Marker {
    * Caller-supplied stable id. When set it is used verbatim (and echoed back
    * from {@link CapacitorAppleMapsPlugin.addMarkers} and on tap) instead of a
    * generated one, so the host can map pins back to its own domain objects and
-   * target them with {@link CapacitorAppleMapsPlugin.updateMarkers}.
+   * target them with {@link CapacitorAppleMapsPlugin.updateMarkers}. Adding a
+   * marker whose id is already on the map replaces the existing pin.
    */
   markerId?: string;
   /**
@@ -476,6 +477,13 @@ export interface CapacitorAppleMapsPlugin {
    * host app's `NSLocationWhenInUseUsageDescription` Info.plist key.
    */
   requestPermissions(): Promise<PermissionStatus>;
+  /**
+   * Create the native map and mount it over the bound element. Resolves once the
+   * map is actually in the view tree (`onMapReady` fires at the same point).
+   * Rejects with code `MOUNT_FAILED` if no web-view container matching the
+   * element appears within about a second (typically a hidden or zero-sized
+   * element), or if the map is destroyed before it finishes mounting.
+   */
   create(options: { id: string; config: AppleMapConfig; element?: unknown; forceCreate?: boolean }): Promise<void>;
   destroy(options: { id: string }): Promise<void>;
   setCamera(options: { id: string; config: CameraConfig }): Promise<void>;

@@ -49,6 +49,60 @@ final class MapStateTests: XCTestCase {
         XCTAssertEqual(map.markers.count, 1)
     }
 
+    /// Pins currently on the map that are our markers (excludes the user-location dot).
+    private func markerAnnotations(_ map: Map) -> [AppleMapMarker] {
+        map.mapView.annotations.compactMap { $0 as? AppleMapMarker }
+    }
+
+    func testReaddingMarkerIdAcrossCallsReplacesPin() throws {
+        let map = try makeMap()
+        _ = map.addMarkers([["coordinate": ["lat": 1.0, "lng": 2.0] as JSObject, "markerId": "dup"]])
+        _ = map.addMarkers([["coordinate": ["lat": 3.0, "lng": 4.0] as JSObject, "markerId": "dup"]])
+
+        XCTAssertEqual(map.markers.count, 1)
+        let pins = markerAnnotations(map)
+        XCTAssertEqual(pins.count, 1)
+        XCTAssertEqual(pins.first?.coordinate.latitude, 3.0)
+        XCTAssertTrue(pins.first === map.markers["dup"])
+
+        map.removeMarkers(["dup"])
+        XCTAssertTrue(markerAnnotations(map).isEmpty)
+    }
+
+    func testDuplicateMarkerIdWithinOneBatchKeepsLast() throws {
+        let map = try makeMap()
+        _ = map.addMarkers([
+            ["coordinate": ["lat": 1.0, "lng": 2.0] as JSObject, "markerId": "dup"],
+            ["coordinate": ["lat": 3.0, "lng": 4.0] as JSObject, "markerId": "dup"]
+        ])
+
+        XCTAssertEqual(map.markers.count, 1)
+        let pins = markerAnnotations(map)
+        XCTAssertEqual(pins.count, 1)
+        XCTAssertEqual(pins.first?.coordinate.latitude, 3.0)
+
+        map.removeMarkers(["dup"])
+        XCTAssertTrue(markerAnnotations(map).isEmpty)
+    }
+
+    func testDownloadedIconReachesEveryMarkerStillUsingIt() throws {
+        let map = try makeMap()
+        let shared = "https://example.com/pin.png"
+        _ = map.addMarkers([
+            ["coordinate": ["lat": 1.0, "lng": 1.0] as JSObject, "markerId": "a", "iconUrl": shared],
+            ["coordinate": ["lat": 2.0, "lng": 2.0] as JSObject, "markerId": "b", "iconUrl": shared],
+            ["coordinate": ["lat": 3.0, "lng": 3.0] as JSObject, "markerId": "changed", "iconUrl": shared],
+            ["coordinate": ["lat": 4.0, "lng": 4.0] as JSObject, "markerId": "removed", "iconUrl": shared],
+            ["coordinate": ["lat": 5.0, "lng": 5.0] as JSObject, "markerId": "other", "iconUrl": "https://example.com/x.png"]
+        ])
+        // Mid-download: one pin switches icon, another is removed.
+        map.updateMarkers([["markerId": "changed", "iconUrl": "https://example.com/new.png"]])
+        map.removeMarkers(["removed"])
+
+        let ids = Set(map.markersAwaitingIcon(shared).map(\.markerId))
+        XCTAssertEqual(ids, ["a", "b"])
+    }
+
     func testMalformedMarkerIsSkipped() throws {
         let map = try makeMap()
         let ids = map.addMarkers([

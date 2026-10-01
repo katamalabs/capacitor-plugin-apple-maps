@@ -29,6 +29,40 @@ jobs:
         run: npm run test:web
       - name: build 📦
         run: npm run build
+      - name: import without a DOM 🧩
+        # The package must be importable during SSR / in Node, where
+        # HTMLElement and customElements don't exist.
+        run: node -e 'require("./dist/plugin.cjs.js")'
+
+  # Example app: type-check the Svelte sources and make a production build
+  # against the freshly built plugin (it depends on it via `file:..`).
+  example-app:
+    name: Example app (check + build)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout 🛒
+        uses: actions/checkout@v7
+      - name: node 24 ❇️
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            example-app/package-lock.json
+      - name: install plugin dependencies 📦
+        run: npm ci
+      - name: build plugin 📦
+        run: npm run build
+      - name: install example-app dependencies 📦
+        working-directory: example-app
+        run: npm ci
+      - name: svelte-check 🔍
+        working-directory: example-app
+        run: npm run check
+      - name: build example app 🏗️
+        working-directory: example-app
+        run: npm run build
 
   # Native iOS: SwiftLint plus an Xcode build and unit-test run on a simulator.
   # Must run on macOS — Ubuntu has no Xcode/MapKit.

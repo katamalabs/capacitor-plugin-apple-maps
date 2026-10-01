@@ -5,6 +5,48 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **`create()` now rejects when the map can't be mounted.** It used to resolve
+  (and fire `onMapReady`) even when no web-view container matched the element,
+  leaving a blank, touch-dead map with only a console log to show for it. Mounting
+  is now retried for about a second to cover a container that appears late; if
+  none does, `create()` rejects with code `MOUNT_FAILED`, the native map is torn
+  down, and `onMapReady` is not emitted. `create()` also now resolves only after
+  the map is mounted rather than before. Destroying a map before it mounts rejects
+  its pending `create()` with the same code.
+
+### Fixed
+
+- **Importing the package no longer throws without a DOM.** The
+  `<capacitor-apple-map>` element class extended `HTMLElement` at module scope,
+  so importing in Node/SSR failed with `HTMLElement is not defined`. It is now
+  declared only when `customElements` exists.
+- **`setOnMapReadyListener` handle is now tracked.** Calling it again replaces
+  the previous listener, calling it with no callback clears it, and `destroy()`
+  removes it — previously the listener leaked and kept firing after teardown.
+- **A failed `AppleMap.create()` no longer leaks observers.** The
+  `ResizeObserver` and window scroll/resize listeners are detached when native
+  creation rejects.
+- **Re-adding an existing `markerId` replaces the pin.** The old annotation used
+  to stay on the map as an orphan that `removeMarkers` could no longer reach.
+- **`requestPermissions` no longer hangs.** The `CLLocationManager` is now
+  created on the main thread (it was created on Capacitor's plugin queue, which
+  has no run loop, so authorization callbacks could never arrive). Overlapping
+  requests are all resolved instead of only the latest, and the initial
+  `notDetermined` callback no longer resolves a request before the user answers.
+  If `NSLocationWhenInUseUsageDescription` is missing from Info.plist the call
+  now rejects with an explanatory message rather than waiting forever.
+- **Markers sharing a remote `iconUrl` all get the icon.** A finished download
+  used to update only the marker that started it; every live marker still using
+  that URL is now updated, and a pin whose icon changed mid-download is no
+  longer overwritten by the stale image.
+- **Snapshots match the live map's overlays.** `takeSnapshot` drew dashed
+  polylines, polygons and circles as solid lines and filled polygon holes in;
+  it now applies `lineDashPattern` and leaves interior rings unfilled.
+
 ## [0.7.1]
 
 ### Fixed

@@ -210,6 +210,14 @@ public class Map: NSObject, UIGestureRecognizerDelegate {
 
     weak var delegate: CapacitorAppleMapsPlugin?
     var targetView: UIView?
+    /// Reports the initial mount; cleared once called so it fires exactly once.
+    var mountCompletion: ((MountOutcome) -> Void)?
+    var isDestroyed = false
+    /// The web view's child scroll view for the element can appear a few frames
+    /// after JS asks for the map, so mounting is retried before it's declared
+    /// failed: up to `mountAttempts` tries, `mountRetryInterval` apart (~1s).
+    static let mountAttempts = 20
+    static let mountRetryInterval: TimeInterval = 0.05
     /// Decoded marker icons keyed by their url/asset string. `NSCache` bounds the
     /// footprint and evicts under memory pressure, unlike a plain dictionary that
     /// would grow without limit as icons come and go. Read/written in MarkerIcons.
@@ -226,11 +234,13 @@ public class Map: NSObject, UIGestureRecognizerDelegate {
     /// a later render can retry it).
     var failedIconURLs: Set<String> = []
 
-    init(id: String, config: AppleMapConfig, delegate: CapacitorAppleMapsPlugin) {
+    init(id: String, config: AppleMapConfig, delegate: CapacitorAppleMapsPlugin,
+         onMount: ((MountOutcome) -> Void)? = nil) {
         self.id = id
         self.config = config
         self.mapView = MKMapView()
         self.delegate = delegate
+        self.mountCompletion = onMount
         super.init()
         // Start clustered when the caller asked for it, so markers added later
         // cluster on their first render instead of flashing as individual pins.
@@ -277,31 +287,14 @@ public class Map: NSObject, UIGestureRecognizerDelegate {
             markerDrag.delegate = self
             self.mapView.addGestureRecognizer(markerDrag)
 
-            self.targetView = self.getTargetContainer(refWidth: self.config.width, refHeight: self.config.height)
-            if let target = self.targetView {
-                target.tag = Map.mapTag
-                target.removeAllSubview()
-                self.mapView.frame = target.bounds
-                self.mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-                target.addSubview(self.mapView)
-            } else {
-                // The mount depends on finding WebKit's private child scroll view
-                // for the map element (see getTargetContainer). If that ever fails
-                // again on a future iOS, the map is silently never added to the
-                // view tree — a blank, touch-dead map with no error. Leave a
-                // breadcrumb so that failure is diagnosable from the console
-                // instead of a mystery. onMapReady still fires below, as before.
-                CAPLog.print("[AppleMaps] getTargetContainer found no container to mount into "
-                                + "(ref=\(self.config.width)x\(self.config.height)); map will not render. "
-                                + "Likely a WebKit view-tree change — inspect the WKWebView's scroll views.")
-            }
-
-            self.delegate?.notifyListeners("onMapReady", data: ["mapId": self.id])
+            self.mount(attempt: 1)
         }
     }
 
     func destroy() {
         DispatchQueue.main.async {
+            self.isDestroyed = true
+            self.finishMount(.destroyed)
             self.dismissCallout()
             self.mapView.removeFromSuperview()
             self.mapView.delegate = nil
@@ -370,12 +363,24 @@ public class Map: NSObject, UIGestureRecognizerDelegate {
         var ids: [String] = []
         runOnMainSync {
             var toAdd: [AppleMapMarker] = []
+            var toRemove: [AppleMapMarker] = []
             for obj in markerObjs {
                 guard let marker = Map.makeMarker(from: obj) else { continue }
+                // Re-adding an existing id replaces that pin. Without this the old
+                // annotation stays on the map but drops out of `markers`, leaving
+                // an orphan that removeMarkers can never reach.
+                if let existing = self.markers[marker.markerId] {
+                    if let pending = toAdd.firstIndex(where: { $0 === existing }) {
+                        toAdd.remove(at: pending)
+                    } else {
+                        toRemove.append(existing)
+                    }
+                }
                 self.markers[marker.markerId] = marker
                 toAdd.append(marker)
                 ids.append(marker.markerId)
             }
+            self.mapView.removeAnnotations(toRemove)
             self.mapView.addAnnotations(toAdd)
         }
         return ids

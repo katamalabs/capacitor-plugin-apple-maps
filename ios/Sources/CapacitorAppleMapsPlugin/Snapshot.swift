@@ -57,7 +57,7 @@ extension Map {
         let renderer = UIGraphicsImageRenderer(size: snapshot.image.size)
         return renderer.image { context in
             snapshot.image.draw(at: .zero)
-            drawOverlays(into: context.cgContext, snapshot: snapshot)
+            drawOverlays(into: context.cgContext, project: snapshot.point(for:))
             drawMarkers(into: context.cgContext, snapshot: snapshot)
         }
     }
@@ -77,56 +77,78 @@ extension Map {
         }
     }
 
-    private func drawOverlays(into ctx: CGContext, snapshot: MKMapSnapshotter.Snapshot) {
+    /// Draw every overlay the way its renderer shows it on the live map: dash
+    /// pattern, fill, and polygon holes included. `project` maps a coordinate to
+    /// a point in `ctx` (the snapshot's `point(for:)`; a plain function in tests).
+    func drawOverlays(into ctx: CGContext, project: (CLLocationCoordinate2D) -> CGPoint) {
         for overlay in overlays.values {
             let style = overlayStyles[ObjectIdentifier(overlay)]
-            let stroke = (style?.strokeColor ?? .systemBlue).cgColor
-            let lineWidth = style?.lineWidth ?? 3
+            let path: CGPath
+            var fill: CGColor?
             if let polyline = overlay as? MKPolyline {
-                strokePath(multiPointPath(polyline, snapshot: snapshot, closed: false),
-                           into: ctx, stroke: stroke, fill: nil, lineWidth: lineWidth)
+                path = ringPath(polyline, project: project, closed: false)
             } else if let polygon = overlay as? MKPolygon {
-                strokePath(multiPointPath(polygon, snapshot: snapshot, closed: true),
-                           into: ctx, stroke: stroke, fill: style?.fillColor?.cgColor, lineWidth: lineWidth)
+                path = polygonPath(polygon, project: project)
+                fill = style?.fillColor?.cgColor
             } else if let circle = overlay as? MKCircle {
-                strokePath(circlePath(circle, snapshot: snapshot),
-                           into: ctx, stroke: stroke, fill: style?.fillColor?.cgColor, lineWidth: lineWidth)
+                path = circlePath(circle, project: project)
+                fill = style?.fillColor?.cgColor
+            } else {
+                continue
             }
+            draw(path, into: ctx, style: style, fill: fill)
         }
     }
 
-    private func strokePath(_ path: CGPath, into ctx: CGContext, stroke: CGColor, fill: CGColor?, lineWidth: CGFloat) {
+    private func draw(_ path: CGPath, into ctx: CGContext, style: OverlayStyle?, fill: CGColor?) {
+        ctx.saveGState()
+        defer { ctx.restoreGState() }
         if let fill = fill {
+            // Even-odd so a polygon's interior rings come out as holes, as
+            // MKPolygonRenderer draws them.
             ctx.addPath(path)
             ctx.setFillColor(fill)
-            ctx.fillPath()
+            ctx.fillPath(using: .evenOdd)
         }
         ctx.addPath(path)
-        ctx.setStrokeColor(stroke)
-        ctx.setLineWidth(lineWidth)
+        ctx.setStrokeColor((style?.strokeColor ?? .systemBlue).cgColor)
+        ctx.setLineWidth(style?.lineWidth ?? 3)
         ctx.setLineJoin(.round)
+        if let dashes = style?.lineDashPattern, !dashes.isEmpty {
+            ctx.setLineDash(phase: 0, lengths: dashes.map { CGFloat($0.doubleValue) })
+        }
         ctx.strokePath()
     }
 
-    private func multiPointPath(_ shape: MKMultiPoint, snapshot: MKMapSnapshotter.Snapshot, closed: Bool) -> CGPath {
+    /// The exterior ring plus one closed subpath per interior ring (hole).
+    private func polygonPath(_ polygon: MKPolygon, project: (CLLocationCoordinate2D) -> CGPoint) -> CGPath {
+        let path = CGMutablePath()
+        path.addPath(ringPath(polygon, project: project, closed: true))
+        for hole in polygon.interiorPolygons ?? [] {
+            path.addPath(ringPath(hole, project: project, closed: true))
+        }
+        return path
+    }
+
+    private func ringPath(_ shape: MKMultiPoint, project: (CLLocationCoordinate2D) -> CGPoint, closed: Bool) -> CGPath {
         let path = CGMutablePath()
         let points = shape.points()
         for index in 0..<shape.pointCount {
-            let point = snapshot.point(for: points[index].coordinate)
+            let point = project(points[index].coordinate)
             if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
         }
         if closed { path.closeSubpath() }
         return path
     }
 
-    private func circlePath(_ circle: MKCircle, snapshot: MKMapSnapshotter.Snapshot) -> CGPath {
-        let center = snapshot.point(for: circle.coordinate)
+    private func circlePath(_ circle: MKCircle, project: (CLLocationCoordinate2D) -> CGPoint) -> CGPath {
+        let center = project(circle.coordinate)
         // Convert the radius (meters) to points via a coordinate one radius north.
         let north = CLLocationCoordinate2D(
             latitude: circle.coordinate.latitude + circle.radius / 111_320.0,
             longitude: circle.coordinate.longitude
         )
-        let edge = snapshot.point(for: north)
+        let edge = project(north)
         let radius = hypot(edge.x - center.x, edge.y - center.y)
         return CGPath(
             ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2),

@@ -33,7 +33,7 @@ extension Map {
         }
 
         if iconUrl.hasPrefix("http") {
-            downloadRemoteIcon(iconUrl, for: marker, in: mapView)
+            downloadRemoteIcon(iconUrl, in: mapView)
             return nil
         }
 
@@ -46,11 +46,11 @@ extension Map {
         return nil
     }
 
-    /// Fetches a remote icon once and applies it to the live annotation view.
-    /// De-dupes concurrent requests for the same url and remembers permanent
-    /// misses so a re-render doesn't re-download. Must be called on the main
-    /// thread; the completion hops back to it.
-    private func downloadRemoteIcon(_ iconUrl: String, for marker: AppleMapMarker, in mapView: MKMapView) {
+    /// Fetches a remote icon once and applies it to every live annotation view
+    /// using it. De-dupes concurrent requests for the same url and remembers
+    /// permanent misses so a re-render doesn't re-download. Must be called on the
+    /// main thread; the completion hops back to it.
+    private func downloadRemoteIcon(_ iconUrl: String, in mapView: MKMapView) {
         guard !failedIconURLs.contains(iconUrl), !inFlightIconURLs.contains(iconUrl) else { return }
         guard let url = URL(string: iconUrl) else {
             failedIconURLs.insert(iconUrl)
@@ -71,7 +71,9 @@ extension Map {
                 }
 
                 self.iconCache.setObject(image, forKey: iconUrl as NSString)
-                if let view = mapView?.view(for: marker) {
+                guard let mapView = mapView else { return }
+                for marker in self.markersAwaitingIcon(iconUrl) {
+                    guard let view = mapView.view(for: marker) else { continue }
                     let sized = self.resize(image, marker.iconSize)
                     view.image = sized
                     if let sized = sized {
@@ -80,6 +82,15 @@ extension Map {
                 }
             }
         }.resume()
+    }
+
+    /// Markers that should receive a just-downloaded `iconUrl`. Every live marker
+    /// currently using the url, not only the one whose render started the download
+    /// (later requests for the same url were de-duped away and are waiting too).
+    /// A marker whose icon changed or that was removed mid-download is excluded,
+    /// so a stale download can't overwrite a newer icon.
+    func markersAwaitingIcon(_ iconUrl: String) -> [AppleMapMarker] {
+        markers.values.filter { $0.iconUrl == iconUrl }
     }
 
     private func resize(_ image: UIImage, _ size: CGSize?) -> UIImage? {

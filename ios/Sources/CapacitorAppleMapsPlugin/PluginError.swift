@@ -16,4 +16,7 @@ enum PluginError {
     static let invalidArgument = "INVALID_ARGUMENT"
     /// A native operation failed at runtime (its `Error` is forwarded too).
     static let operationFailed = "OPERATION_FAILED"
+    /// `create` could not place the native map in the web view (no container for
+    /// the element turned up), or the map was destroyed before it mounted.
+    static let mountFailed = "MOUNT_FAILED"
 }
