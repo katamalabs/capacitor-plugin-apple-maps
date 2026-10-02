@@ -16,9 +16,11 @@ Renders a **native Apple Maps (MapKit)** view on iOS from a Capacitor app. The
 search, and the map/marker/camera events - so an app can route **iOS to Apple
 Maps and Android/web to Google Maps** behind one thin abstraction.
 
-- **iOS only.** MapKit is a native iOS framework and needs no API key. On web
-  and Android every method rejects with `unavailable` - the host app is expected
-  to use another provider on those platforms.
+- **iOS only.** MapKit is a native iOS framework and needs no API key or usage
+  billing (shipping to the App Store still needs the standard Apple Developer
+  Program membership, as with any iOS app). On web and Android every method
+  rejects with `unavailable` - the host app is expected to use another provider
+  on those platforms.
 - **No external dependencies.** Uses the system `MapKit` framework; the only SPM
   dependency is `capacitor-swift-pm`.
 - Requires **iOS 15+** (matches the Capacitor 8 baseline).
