@@ -138,10 +138,9 @@
   // and throws with what it saw.
   /*
     `searchPlaces` goes to Apple over the network and rejects when Apple does not
-    answer, which a shared CI runner sees now and then. A rejection is retried a couple of times
-    with a pause before the step fails; a wrong answer is not retried, because
-    that is the plugin's fault, not the network's. The last error is the one the
-    step reports, with its code, so a failure says which it was.
+    answer, which a shared CI runner sees now and then. A rejection is retried a
+    couple of times with a pause before the step fails. The last error is the
+    one the step reports, with its code, so a failure says which it was.
   */
   async function retryNetwork<T>(run: () => Promise<T>, attempts = 3): Promise<T> {
     for (let attempt = 1; ; attempt++) {
@@ -555,10 +554,27 @@
       // `region` only biases MapKit (it can still answer near the device's own
       // location); `maxDistanceKm` is the filter, so that's what is checked.
       const maxKm = 15;
-      const { results } = await retryNetwork(() =>
-        searchPlaces({ query: 'coffee', region: searchRegion, maxDistanceKm: maxKm, limit: 5 }),
-      );
-      check(results.length >= 1 && results.length <= 5, `${results.length} results, expected 1–5`);
+      // An empty answer is retried too. "Coffee" in San Francisco always has a
+      // match, so empty means MapKit answered somewhere else - or nothing - this
+      // time, which a CI runner sees intermittently.
+      const results = await retryNetwork(async () => {
+        const { results } = await searchPlaces({ query: 'coffee', region: searchRegion, maxDistanceKm: maxKm, limit: 5 });
+        if (results.length === 0) throw new Error('0 results');
+        return results;
+      }).catch(async (err) => {
+        // Still empty: ask again without the filter, to say whether MapKit
+        // answered far away (region ignored) or answered nothing at all.
+        if (!errMsg(err).startsWith('0 results')) throw err;
+        const { results: unfiltered } = await searchPlaces({ query: 'coffee', region: searchRegion }).catch(() => ({ results: [] }));
+        const nearest = unfiltered
+          .map((r) => ({ title: r.title, km: distanceKm(center, { lat: r.latitude, lng: r.longitude }) }))
+          .sort((a, b) => a.km - b.km)[0];
+        throw new Error(
+          `0 results within ${maxKm} km after 3 tries; unfiltered: ` +
+            (nearest ? `${unfiltered.length}, nearest ${nearest.title} at ${Math.round(nearest.km)} km` : 'none'),
+        );
+      });
+      check(results.length <= 5, `${results.length} results, expected 1–5`);
       const far = results.filter((r) => distanceKm(center, { lat: r.latitude, lng: r.longitude }) > maxKm);
       check(far.length === 0, `farther than ${maxKm} km: ${far.map((r) => r.title).join(', ')}`);
       return `${results.length} results, e.g. ${results[0].title}`;
