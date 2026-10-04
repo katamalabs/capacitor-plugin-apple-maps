@@ -109,7 +109,7 @@ export class AppleMap {
   /**
    * Create a map bound to `options.element`. Resolves once the native map is
    * mounted. Rejects with code `MOUNT_FAILED` if no web-view container for the
-   * element appears within about a second (usually a hidden or zero-sized
+   * element appears within about five seconds (usually a hidden or zero-sized
    * element); nothing is left behind to clean up in that case.
    */
   static async create(options: CreateMapArgs): Promise<AppleMap> {
