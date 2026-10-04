@@ -24,6 +24,17 @@ private func parseRegion(_ region: JSObject?) -> (region: MKCoordinateRegion, ce
     )
 }
 
+/// The error a finished `MKLocalSearch` should reject with, or nil when it should
+/// resolve. "No matches" arrives as `MKError.placemarkNotFound`, and that is an
+/// answer - an empty list - not a failure. Anything else (offline, throttled,
+/// a server error) is a failure, and resolving it as `[]` would make "Apple did
+/// not answer" indistinguishable from "there is nothing here".
+func searchFailure(_ error: Error?) -> Error? {
+    guard let error = error else { return nil }
+    if let mkError = error as? MKError, mkError.code == .placemarkNotFound { return nil }
+    return error
+}
+
 /// What `searchAutocomplete` returns when the caller does not say.
 let defaultCompleterResultTypes: MKLocalSearchCompleter.ResultType = [.address, .pointOfInterest]
 
@@ -189,7 +200,16 @@ class SearchService: NSObject, MKLocalSearchCompleterDelegate {
 
             let search = MKLocalSearch(request: request)
             self.currentSearch = search
-            search.start { response, _ in
+            search.start { response, error in
+                // A newer search cancelled this one; its caller has moved on.
+                guard self.currentSearch === search else {
+                    call.resolve(["results": []])
+                    return
+                }
+                if let failure = searchFailure(error) {
+                    call.reject("Place search failed: \(failure.localizedDescription)", PluginError.operationFailed, failure)
+                    return
+                }
                 if self.items.count > 300 {
                     self.items.removeAll()
                 }

@@ -136,6 +136,27 @@
   // A step should fail when the result is wrong, not only when the call throws:
   // each check reads something back (camera, bounds, map type, rendered pixels)
   // and throws with what it saw.
+  /*
+    `searchPlaces` goes to Apple over the network and rejects when Apple does not
+    answer, which a shared CI runner sees now and then. A rejection is retried a couple of times
+    with a pause before the step fails; a wrong answer is not retried, because
+    that is the plugin's fault, not the network's. The last error is the one the
+    step reports, with its code, so a failure says which it was.
+  */
+  async function retryNetwork<T>(run: () => Promise<T>, attempts = 3): Promise<T> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await run();
+      } catch (err) {
+        if (attempt >= attempts) {
+          const code = (err as { code?: string }).code;
+          throw new Error(`${code ? `${code}: ` : ''}${errMsg(err)} (after ${attempts} tries)`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+      }
+    }
+  }
+
   function check(condition: boolean, message: string): asserts condition {
     if (!condition) throw new Error(message);
   }
@@ -534,7 +555,9 @@
       // `region` only biases MapKit (it can still answer near the device's own
       // location); `maxDistanceKm` is the filter, so that's what is checked.
       const maxKm = 15;
-      const { results } = await searchPlaces({ query: 'coffee', region: searchRegion, maxDistanceKm: maxKm, limit: 5 });
+      const { results } = await retryNetwork(() =>
+        searchPlaces({ query: 'coffee', region: searchRegion, maxDistanceKm: maxKm, limit: 5 }),
+      );
       check(results.length >= 1 && results.length <= 5, `${results.length} results, expected 1–5`);
       const far = results.filter((r) => distanceKm(center, { lat: r.latitude, lng: r.longitude }) > maxKm);
       check(far.length === 0, `farther than ${maxKm} km: ${far.map((r) => r.title).join(', ')}`);
