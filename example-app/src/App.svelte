@@ -558,14 +558,21 @@
       // match, so empty means MapKit answered somewhere else - or nothing - this
       // time, which a CI runner sees intermittently.
       const results = await retryNetwork(async () => {
-        const { results } = await searchPlaces({ query: 'coffee', region: searchRegion, maxDistanceKm: maxKm, limit: 5 });
+        const { results } = await searchPlaces({
+          query: 'coffee',
+          region: searchRegion,
+          maxDistanceKm: maxKm,
+          limit: 5,
+        });
         if (results.length === 0) throw new Error('0 results');
         return results;
       }).catch(async (err) => {
         // Still empty: ask again without the filter, to say whether MapKit
         // answered far away (region ignored) or answered nothing at all.
         if (!errMsg(err).startsWith('0 results')) throw err;
-        const { results: unfiltered } = await searchPlaces({ query: 'coffee', region: searchRegion }).catch(() => ({ results: [] }));
+        const { results: unfiltered } = await searchPlaces({ query: 'coffee', region: searchRegion }).catch(() => ({
+          results: [],
+        }));
         const nearest = unfiltered
           .map((r) => ({ title: r.title, km: distanceKm(center, { lat: r.latitude, lng: r.longitude }) }))
           .sort((a, b) => a.km - b.km)[0];
