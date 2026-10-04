@@ -333,6 +333,19 @@ class CapacitorAppleMapsTests: XCTestCase {
         XCTAssertTrue(withinDistance(maxKm: 800, from: nil, to: saoPaulo))
     }
 
+    // MARK: - Search failures
+
+    func testSearchFailureResolvesNoErrorAndNoMatches() {
+        XCTAssertNil(searchFailure(nil))
+        XCTAssertNil(searchFailure(MKError(.placemarkNotFound)))
+    }
+
+    func testSearchFailureRejectsEverythingElse() {
+        XCTAssertNotNil(searchFailure(MKError(.loadingThrottled)))
+        XCTAssertNotNil(searchFailure(MKError(.serverFailure)))
+        XCTAssertNotNil(searchFailure(URLError(.notConnectedToInternet)))
+    }
+
     // MARK: - Search resolve payload
 
     func testResolvePayloadCarriesThePlaceSpan() {

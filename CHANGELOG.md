@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2]
+
+### Changed
+
+- **`searchPlaces` rejects when MapKit fails.** An error from `MKLocalSearch` -
+  offline, throttled, a server failure - used to resolve as `{ results: [] }`,
+  the same answer as a search that matched nothing. It now rejects with code
+  `OPERATION_FAILED`. No matches (`MKError.placemarkNotFound`) still resolves
+  `[]`, as does a search cancelled by a newer one.
+
 ## [0.8.1]
 
 ### Added

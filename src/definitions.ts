@@ -610,6 +610,10 @@ export interface CapacitorAppleMapsPlugin {
    * the results carry coordinates up front. Pass `region` to scope/bias results,
    * `maxDistanceKm` to drop results farther than that from the region center
    * (e.g. a US ZIP that also exists abroad), and `limit` to cap the count.
+   *
+   * Resolves `[]` when nothing matches. Rejects with code `OPERATION_FAILED`
+   * when MapKit could not answer - offline, throttled or a server error - so a
+   * failed search is never mistaken for an empty one.
    */
   searchPlaces(options: {
     query: string;
