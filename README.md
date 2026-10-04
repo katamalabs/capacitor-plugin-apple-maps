@@ -281,7 +281,7 @@ create(options: { id: string; config: AppleMapConfig; element?: unknown; forceCr
 Create the native map and mount it over the bound element. Resolves once the
 map is actually in the view tree (`onMapReady` fires at the same point).
 Rejects with code `MOUNT_FAILED` if no web-view container matching the
-element appears within about a second (typically a hidden or zero-sized
+element appears within about five seconds (typically a hidden or zero-sized
 element), or if the map is destroyed before it finishes mounting.
 
 | Param         | Type                                                                                                                         |

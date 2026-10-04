@@ -186,8 +186,13 @@ public class Map: NSObject, UIGestureRecognizerDelegate {
     var isDestroyed = false
     /// The web view's child scroll view for the element can appear a few frames
     /// after JS asks for the map, so mounting is retried before it's declared
-    /// failed: up to `mountAttempts` tries, `mountRetryInterval` apart (~1s).
-    static let mountAttempts = 20
+    /// failed: up to `mountAttempts` tries, `mountRetryInterval` apart (~5s).
+    /// A mount normally lands within a few frames; the window is for a device
+    /// busy with a cold start. One second was too short for a loaded CI
+    /// simulator, which failed `create()` on a page that mounts every other run.
+    /// Waiting costs nothing when the container appears, and only delays the
+    /// rejection when it never will.
+    static let mountAttempts = 100
     static let mountRetryInterval: TimeInterval = 0.05
     /// Decoded marker icons keyed by their url/asset string. `NSCache` bounds the
     /// footprint and evicts under memory pressure, unlike a plain dictionary that

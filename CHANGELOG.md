@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.2]
 
+### Fixed
+
+- **`create()` waits up to about five seconds for its container.** The mount
+  retry window added in 0.8.0 was about one second, which a busy device - a cold
+  start, or a loaded CI simulator - could miss, rejecting `MOUNT_FAILED` on an
+  element that would have mounted a moment later. It now retries for about five
+  seconds. A normal mount is unaffected; only a map that can never mount is
+  rejected later.
+
 ### Changed
 
 - **`searchPlaces` rejects when MapKit fails.** An error from `MKLocalSearch` -
