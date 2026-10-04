@@ -1,6 +1,6 @@
 import { WebPlugin } from '@capacitor/core';
 
-import type { CapacitorAppleMapsPlugin, LatLngBounds, PermissionStatus } from './definitions';
+import type { CapacitorAppleMapsPlugin, LatLngBounds, PermissionStatus, SearchResolution } from './definitions';
 
 /**
  * Web fallback. Apple Maps is a native MapKit feature with no web surface here,
@@ -164,7 +164,7 @@ export class CapacitorAppleMapsWeb extends WebPlugin implements CapacitorAppleMa
     this.notAvailable();
   }
 
-  async searchResolve(): Promise<{ lat?: number; lng?: number; title?: string }> {
+  async searchResolve(): Promise<SearchResolution> {
     this.notAvailable();
   }
 

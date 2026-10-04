@@ -416,6 +416,17 @@ export interface SearchCompletion {
   subtitle: string;
 }
 
+/** A suggestion resolved by `searchResolve`. Empty when nothing was found. */
+export interface SearchResolution {
+  lat?: number;
+  lng?: number;
+  title?: string;
+  /** Degrees of latitude the place spans. Autocomplete ids only. */
+  latitudeDelta?: number;
+  /** Degrees of longitude the place spans. Autocomplete ids only. */
+  longitudeDelta?: number;
+}
+
 /** One coordinate-bearing result from `searchPlaces`. */
 export interface SearchResult {
   /** Opaque id to pass to `searchResolve` (or use the coordinates directly). */
@@ -609,8 +620,14 @@ export interface CapacitorAppleMapsPlugin {
   /**
    * Resolve a suggestion `id` (from either search method) to coordinates.
    * Returns an empty object if the id is unknown or has no location.
+   *
+   * A `searchAutocomplete` id also comes back with `latitudeDelta` and
+   * `longitudeDelta`: the span of the place itself, from MapKit's bounding
+   * region. A street address spans a few metres and a province many degrees, so
+   * this is how to tell "near this point" from "somewhere in this region".
+   * Omitted for `searchPlaces` ids, whose search region bounds every result.
    */
-  searchResolve(options: { id: string }): Promise<{ lat?: number; lng?: number; title?: string }>;
+  searchResolve(options: { id: string }): Promise<SearchResolution>;
 
   /**
    * Coordinates to an address via `CLGeocoder`. Needs no API key. Pass

@@ -847,17 +847,23 @@ the results carry coordinates up front. Pass `region` to scope/bias results,
 ### searchResolve(...)
 
 ```typescript
-searchResolve(options: { id: string; }) => Promise<{ lat?: number; lng?: number; title?: string; }>
+searchResolve(options: { id: string; }) => Promise<SearchResolution>
 ```
 
 Resolve a suggestion `id` (from either search method) to coordinates.
 Returns an empty object if the id is unknown or has no location.
 
+A `searchAutocomplete` id also comes back with `latitudeDelta` and
+`longitudeDelta`: the span of the place itself, from MapKit's bounding
+region. A street address spans a few metres and a province many degrees, so
+this is how to tell "near this point" from "somewhere in this region".
+Omitted for `searchPlaces` ids, whose search region bounds every result.
+
 | Param         | Type                         |
 | ------------- | ---------------------------- |
 | **`options`** | <code>{ id: string; }</code> |
 
-**Returns:** <code>Promise&lt;{ lat?: number; lng?: number; title?: string; }&gt;</code>
+**Returns:** <code>Promise&lt;<a href="#searchresolution">SearchResolution</a>&gt;</code>
 
 --------------------
 
@@ -1425,6 +1431,19 @@ One coordinate-bearing result from `searchPlaces`.
 | **`subtitle`**  | <code>string</code> |                                                                         |
 | **`latitude`**  | <code>number</code> |                                                                         |
 | **`longitude`** | <code>number</code> |                                                                         |
+
+
+#### SearchResolution
+
+A suggestion resolved by `searchResolve`. Empty when nothing was found.
+
+| Prop                 | Type                | Description                                                  |
+| -------------------- | ------------------- | ------------------------------------------------------------ |
+| **`lat`**            | <code>number</code> |                                                              |
+| **`lng`**            | <code>number</code> |                                                              |
+| **`title`**          | <code>string</code> |                                                              |
+| **`latitudeDelta`**  | <code>number</code> | Degrees of latitude the place spans. Autocomplete ids only.  |
+| **`longitudeDelta`** | <code>number</code> | Degrees of longitude the place spans. Autocomplete ids only. |
 
 
 #### GeocodeResult
