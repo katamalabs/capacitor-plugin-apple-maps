@@ -555,7 +555,9 @@
       // `region` only biases MapKit (it can still answer near the device's own
       // location); `maxDistanceKm` is the filter, so that's what is checked.
       const maxKm = 15;
-      const { results } = await retryNetwork(() => searchPlaces({ query: 'coffee', region: searchRegion, maxDistanceKm: maxKm, limit: 5 }));
+      const { results } = await retryNetwork(() =>
+        searchPlaces({ query: 'coffee', region: searchRegion, maxDistanceKm: maxKm, limit: 5 }),
+      );
       check(results.length >= 1 && results.length <= 5, `${results.length} results, expected 1–5`);
       const far = results.filter((r) => distanceKm(center, { lat: r.latitude, lng: r.longitude }) > maxKm);
       check(far.length === 0, `farther than ${maxKm} km: ${far.map((r) => r.title).join(', ')}`);
