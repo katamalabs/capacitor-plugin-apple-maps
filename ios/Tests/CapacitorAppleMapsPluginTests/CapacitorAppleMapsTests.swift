@@ -333,6 +333,32 @@ class CapacitorAppleMapsTests: XCTestCase {
         XCTAssertTrue(withinDistance(maxKm: 800, from: nil, to: saoPaulo))
     }
 
+    // MARK: - Search resolve payload
+
+    func testResolvePayloadCarriesThePlaceSpan() {
+        // Quebec the province, as MapKit bounds it.
+        let payload = resolvePayload(
+            coordinate: CLLocationCoordinate2D(latitude: 52.94, longitude: -73.55),
+            title: "Quebec",
+            span: MKCoordinateSpan(latitudeDelta: 18.28, longitudeDelta: 23.4)
+        )
+        XCTAssertEqual(payload["lat"] as? Double, 52.94)
+        XCTAssertEqual(payload["lng"] as? Double, -73.55)
+        XCTAssertEqual(payload["title"] as? String, "Quebec")
+        XCTAssertEqual(payload["latitudeDelta"] as? Double, 18.28)
+        XCTAssertEqual(payload["longitudeDelta"] as? Double, 23.4)
+    }
+
+    func testResolvePayloadOmitsAMissingOrEmptySpan() {
+        let here = CLLocationCoordinate2D(latitude: 42.36, longitude: -71.06)
+        for span in [nil, MKCoordinateSpan(latitudeDelta: 0, longitudeDelta: 0)] {
+            let payload = resolvePayload(coordinate: here, title: "Boston", span: span)
+            XCTAssertNil(payload["latitudeDelta"])
+            XCTAssertNil(payload["longitudeDelta"])
+            XCTAssertEqual(payload["title"] as? String, "Boston")
+        }
+    }
+
     func testWithinDistanceKeepsNearbyDropsFar() {
         let boston = CLLocation(latitude: 42.36, longitude: -71.06)
         let portland = CLLocationCoordinate2D(latitude: 43.66, longitude: -70.26) // ~150 km

@@ -45,6 +45,19 @@ func parseCompleterResultTypes(_ names: [String]?) -> MKLocalSearchCompleter.Res
     return types.isEmpty ? defaultCompleterResultTypes : types
 }
 
+/// The `searchResolve` payload. `span` is how much of the map the place covers -
+/// a street address a few metres, a province hundreds of kilometres - which a
+/// caller needs to tell "near this point" from "somewhere in this region". Left
+/// out when the search gave no region for the place alone.
+func resolvePayload(coordinate: CLLocationCoordinate2D, title: String, span: MKCoordinateSpan?) -> [String: Any] {
+    var payload: [String: Any] = ["lat": coordinate.latitude, "lng": coordinate.longitude, "title": title]
+    if let span = span, span.latitudeDelta > 0, span.longitudeDelta > 0 {
+        payload["latitudeDelta"] = span.latitudeDelta
+        payload["longitudeDelta"] = span.longitudeDelta
+    }
+    return payload
+}
+
 /// A "City, State" style secondary line, skipping the locality when it just
 /// repeats the primary name.
 private func placeSubtitle(for placemark: MKPlacemark, name: String?) -> String {
@@ -213,12 +226,8 @@ class SearchService: NSObject, MKLocalSearchCompleterDelegate {
 
         // A `places` result already carries its coordinate.
         if let item = items[id] {
-            let coordinate = item.placemark.coordinate
-            call.resolve([
-                "lat": coordinate.latitude,
-                "lng": coordinate.longitude,
-                "title": item.name ?? ""
-            ])
+            // No span: a `places` search's region bounds every result, not this one.
+            call.resolve(resolvePayload(coordinate: item.placemark.coordinate, title: item.name ?? "", span: nil))
             return
         }
 
@@ -234,12 +243,10 @@ class SearchService: NSObject, MKLocalSearchCompleterDelegate {
                     call.resolve([:])
                     return
                 }
-                let coordinate = item.placemark.coordinate
-                call.resolve([
-                    "lat": coordinate.latitude,
-                    "lng": coordinate.longitude,
-                    "title": item.name ?? completion.title
-                ])
+                // A completion search answers with the one place it names, so the
+                // response's bounding region is that place's own extent.
+                let span = response?.mapItems.count == 1 ? response?.boundingRegion.span : nil
+                call.resolve(resolvePayload(coordinate: item.placemark.coordinate, title: item.name ?? completion.title, span: span))
             }
         }
     }

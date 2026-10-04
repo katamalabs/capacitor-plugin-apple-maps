@@ -5,7 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.0]]
+## [0.8.1]
+
+### Added
+
+- **`searchResolve` reports how big the place is.** An autocomplete id now
+  resolves with `latitudeDelta` and `longitudeDelta`, the span of MapKit's
+  bounding region for that one place: a few thousandths of a degree for a street
+  address, about 0.25° for a city, 18° for a province. A caller searching "near"
+  the result can tell a point from a region whose centre may be nowhere anyone
+  is. Omitted for `searchPlaces` ids, whose region bounds every result. The
+  return type is now the exported `SearchResolution`.
+
+## [0.8.0]
 
 ### Changed
 
