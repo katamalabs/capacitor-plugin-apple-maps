@@ -54,7 +54,7 @@
     "lint": "npm run eslint && npm run prettier -- --check && npm run swiftlint -- lint",
     "fmt": "npm run eslint -- --fix && npm run prettier -- --write && npm run swiftlint -- --fix --format",
     "eslint": "eslint . --ext ts",
-    "prettier": "prettier \"**/*.{css,html,ts,js}\"",
+    "prettier": "prettier \"**/*.{css,html,ts,js}\" \"!example-app/**\" \"!dist/**\" \"!node_modules/**\"",
     "swiftlint": "node-swiftlint",
     "docgen": "docgen --api CapacitorAppleMapsPlugin --output-readme README.md --output-json dist/docs.json",
     "docs:site": "node scripts/build-docs.mjs",
