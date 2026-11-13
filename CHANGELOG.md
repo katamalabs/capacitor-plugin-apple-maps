@@ -5,6 +5,33 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0]
+
+### Added
+
+- **`computeRoute` — driving directions, distance and ETA.** A new data-only
+  route API over `MKDirections`: give it an `origin` and `destination` (each a
+  `{ lat, lng }`) and it resolves `{ routes }`, each route carrying `distance`
+  (metres), `expectedTravelTime` (seconds — the ETA), a `path` (the geometry, in
+  the same `LatLng[]` shape `addPolylines` takes, so you can draw it), optional
+  `advisoryNotices`, and turn-by-turn `steps`. `transportType` selects
+  `automobile` (default), `walking` or `transit`; `alternatives: true` returns
+  alternate routes when MapKit offers them. Needs no API key. It does not draw
+  anything — the host app renders the route from `path`. "No route exists"
+  (`MKError.directionsNotFound`, e.g. driving across an ocean) resolves
+  `{ routes: [] }`; offline, throttled or a server error rejects with
+  `OPERATION_FAILED`, so a failed request is never mistaken for "no route". Each
+  call supersedes the previous one, and a fresh `MKDirections` per call avoids
+  the `loadingThrottled` rate limit — still, call it per user action, not on
+  every map move. iOS only; web/Android reject with `unavailable`.
+  `@capacitor/google-maps` has no directions API, so there is no counterpart to
+  mirror.
+- **`computeRoute` takes `departureDate` / `arrivalDate`.** Pass either as a
+  Unix timestamp in **milliseconds** (`Date.getTime()`) for a traffic-aware
+  `expectedTravelTime` — `departureDate: Date.now()` for an accurate "if I leave
+  now" ETA, or `arrivalDate` to plan backwards from a meeting. Omit both for an
+  estimate at the current moment; MapKit uses `departureDate` if both are given.
+
 ## [0.8.2]
 
 ### Fixed

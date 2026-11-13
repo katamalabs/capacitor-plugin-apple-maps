@@ -176,6 +176,10 @@ export class CapacitorAppleMapsWeb extends WebPlugin implements CapacitorAppleMa
     this.notAvailable();
   }
 
+  async computeRoute(): Promise<{ routes: never[] }> {
+    this.notAvailable();
+  }
+
   async onResize(): Promise<void> {
     this.notAvailable();
   }
