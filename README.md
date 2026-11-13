@@ -36,6 +36,10 @@ Maps and Android/web to Google Maps** behind one thin abstraction.
   by id.
 - **Place search** - keyless `MKLocalSearch` / `MKLocalSearchCompleter`
   autocomplete, one-shot search, and coordinate resolution.
+- **Directions & routes** - keyless `computeRoute` via `MKDirections`: distance,
+  ETA, route geometry, turn-by-turn steps, and alternate routes for automobile,
+  walking, or transit. Returns data only - pass a route's `path` to
+  `addPolylines` to draw it.
 - **Appearance & controls** - map type, traffic, points of interest, compass,
   scale, forced color scheme, per-gesture toggles, and edge padding.
 - **Events** - camera idle / move-started, marker click, info-window click,
