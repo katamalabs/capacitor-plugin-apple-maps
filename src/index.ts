@@ -1,10 +1,13 @@
 import type {
   GeocodeResult,
+  LatLng,
   PermissionStatus,
+  Route,
   SearchCompletion,
   SearchRegion,
   SearchResult,
   SearchResultType,
+  TransportType,
 } from './definitions';
 import { CapacitorAppleMaps } from './implementation';
 
@@ -75,4 +78,24 @@ export function reverseGeocode(options: {
 /** A typed address to coordinates (iOS, `CLGeocoder`). Empty object when nothing matched. */
 export function geocode(options: { address: string; language?: string }): Promise<GeocodeResult> {
   return CapacitorAppleMaps.geocode(options);
+}
+
+/**
+ * Compute routes between two coordinates (iOS, `MKDirections`). No API key
+ * needed. Data only: returns each route's distance, ETA, `path` geometry and
+ * steps - draw one with {@link AppleMap.addPolylines}. Resolves `{ routes: [] }`
+ * when no route exists; rejects when MapKit could not answer.
+ *
+ * Pass `departureDate`/`arrivalDate` as Unix ms (`Date.getTime()`) for a
+ * traffic-aware ETA - e.g. `departureDate: Date.now()` for "if I leave now".
+ */
+export function computeRoute(options: {
+  origin: LatLng;
+  destination: LatLng;
+  transportType?: TransportType;
+  alternatives?: boolean;
+  departureDate?: number;
+  arrivalDate?: number;
+}): Promise<{ routes: Route[] }> {
+  return CapacitorAppleMaps.computeRoute(options);
 }

@@ -95,5 +95,8 @@
     "ios": {
       "src": "ios"
     }
+  },
+  "allowScripts": {
+    "swiftlint@2.0.0": true
   }
 }

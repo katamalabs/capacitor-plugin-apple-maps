@@ -448,6 +448,36 @@ export interface SearchRegion {
   longitudeDelta?: number;
 }
 
+/** How to travel, for `computeRoute`. Defaults to `automobile`. */
+export type TransportType = 'automobile' | 'walking' | 'transit';
+
+/**
+ * One route from `computeRoute`. Data only - the geometry and figures MapKit
+ * computed, with no map side effects. Draw `path` with {@link addPolylines}.
+ */
+export interface Route {
+  /** MapKit's label for the route, e.g. the main road it follows (`I-95`). */
+  name: string;
+  /** Total distance in metres. */
+  distance: number;
+  /** Estimated travel time in seconds - the ETA. */
+  expectedTravelTime: number;
+  /** The route geometry, ready to pass straight to {@link addPolylines} as `path`. */
+  path: LatLng[];
+  /** MapKit advisories for the route (e.g. a toll-road notice). Omitted when there are none. */
+  advisoryNotices?: string[];
+  /** Turn-by-turn steps. Omitted when MapKit returned none (e.g. some transit routes). */
+  steps?: RouteStep[];
+}
+
+/** One turn-by-turn step of a {@link Route}. */
+export interface RouteStep {
+  /** Human-readable instruction, e.g. `Turn left onto Main St`. */
+  instructions: string;
+  /** Length of this step in metres. */
+  distance: number;
+}
+
 /**
  * A place from `reverseGeocode` or `geocode`. Every field is optional: MapKit
  * fills in what it knows, and an empty object means nothing was found.
@@ -650,6 +680,36 @@ export interface CapacitorAppleMapsPlugin {
    * {@link reverseGeocode}: check for `latitude` before using the result.
    */
   geocode(options: { address: string; language?: string }): Promise<GeocodeResult>;
+
+  /**
+   * Compute routes between two coordinates via `MKDirections` (iOS). Needs no API
+   * key. Data only: it returns each route's distance, ETA, geometry and steps and
+   * does not draw anything - pass a route's `path` to {@link addPolylines} to show
+   * it. `transportType` defaults to `automobile`; set `alternatives` to also return
+   * alternate routes when MapKit offers them.
+   *
+   * Pass `departureDate` (or `arrivalDate`) as a Unix timestamp in **milliseconds**
+   * (`Date.getTime()`) to get a traffic-aware `expectedTravelTime` for leaving at,
+   * or arriving by, that time - e.g. `departureDate: Date.now()` for an accurate
+   * "if I leave now" ETA. Omit both to let MapKit estimate for the current moment.
+   * Set at most one; MapKit uses `departureDate` if both are given.
+   *
+   * Resolves `{ routes: [] }` when no route exists (e.g. driving across an ocean).
+   * Rejects with code `OPERATION_FAILED` when MapKit could not answer - offline,
+   * throttled or a server error - so a failed request is never mistaken for "no
+   * route". Each `MKDirections` handles one request; call this once per user
+   * action rather than on every map move to avoid MapKit's rate limit.
+   */
+  computeRoute(options: {
+    origin: LatLng;
+    destination: LatLng;
+    transportType?: TransportType;
+    alternatives?: boolean;
+    /** Depart at this time (Unix ms). Yields a traffic-aware ETA; `Date.now()` = "leave now". */
+    departureDate?: number;
+    /** Arrive by this time (Unix ms). Alternative to `departureDate`; ignored if both are set. */
+    arrivalDate?: number;
+  }): Promise<{ routes: Route[] }>;
 
   /** Keep the native frame in sync as the element resizes. */
   onResize(options: { id: string; mapBounds: MapBounds }): Promise<void>;

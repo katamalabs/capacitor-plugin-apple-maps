@@ -213,6 +213,7 @@ const map =
 * [`searchResolve(...)`](#searchresolve)
 * [`reverseGeocode(...)`](#reversegeocode)
 * [`geocode(...)`](#geocode)
+* [`computeRoute(...)`](#computeroute)
 * [`onResize(...)`](#onresize)
 * [`onDisplay(...)`](#ondisplay)
 * [`onScroll(...)`](#onscroll)
@@ -915,6 +916,39 @@ type-ahead or business names prefer {@link searchAutocomplete} /
 --------------------
 
 
+### computeRoute(...)
+
+```typescript
+computeRoute(options: { origin: LatLng; destination: LatLng; transportType?: TransportType; alternatives?: boolean; departureDate?: number; arrivalDate?: number; }) => Promise<{ routes: Route[]; }>
+```
+
+Compute routes between two coordinates via `MKDirections` (iOS). Needs no API
+key. Data only: it returns each route's distance, ETA, geometry and steps and
+does not draw anything - pass a route's `path` to {@link addPolylines} to show
+it. `transportType` defaults to `automobile`; set `alternatives` to also return
+alternate routes when MapKit offers them.
+
+Pass `departureDate` (or `arrivalDate`) as a Unix timestamp in **milliseconds**
+(`Date.getTime()`) to get a traffic-aware `expectedTravelTime` for leaving at,
+or arriving by, that time - e.g. `departureDate: Date.now()` for an accurate
+"if I leave now" ETA. Omit both to let MapKit estimate for the current moment.
+Set at most one; MapKit uses `departureDate` if both are given.
+
+Resolves `{ routes: [] }` when no route exists (e.g. driving across an ocean).
+Rejects with code `OPERATION_FAILED` when MapKit could not answer - offline,
+throttled or a server error - so a failed request is never mistaken for "no
+route". Each `MKDirections` handles one request; call this once per user
+action rather than on every map move to avoid MapKit's rate limit.
+
+| Param         | Type                                                                                                                                                                                                                                |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`options`** | <code>{ origin: <a href="#latlng">LatLng</a>; destination: <a href="#latlng">LatLng</a>; transportType?: <a href="#transporttype">TransportType</a>; alternatives?: boolean; departureDate?: number; arrivalDate?: number; }</code> |
+
+**Returns:** <code>Promise&lt;{ routes: Route[]; }&gt;</code>
+
+--------------------
+
+
 ### onResize(...)
 
 ```typescript
@@ -1470,6 +1504,31 @@ fills in what it knows, and an empty object means nothing was found.
 | **`longitude`**          | <code>number</code> |                                                                                                                                                      |
 
 
+#### Route
+
+One route from `computeRoute`. Data only - the geometry and figures MapKit
+computed, with no map side effects. Draw `path` with {@link addPolylines}.
+
+| Prop                     | Type                     | Description                                                                             |
+| ------------------------ | ------------------------ | --------------------------------------------------------------------------------------- |
+| **`name`**               | <code>string</code>      | MapKit's label for the route, e.g. the main road it follows (`I-95`).                   |
+| **`distance`**           | <code>number</code>      | Total distance in metres.                                                               |
+| **`expectedTravelTime`** | <code>number</code>      | Estimated travel time in seconds - the ETA.                                             |
+| **`path`**               | <code>LatLng[]</code>    | The route geometry, ready to pass straight to {@link addPolylines} as `path`.           |
+| **`advisoryNotices`**    | <code>string[]</code>    | MapKit advisories for the route (e.g. a toll-road notice). Omitted when there are none. |
+| **`steps`**              | <code>RouteStep[]</code> | Turn-by-turn steps. Omitted when MapKit returned none (e.g. some transit routes).       |
+
+
+#### RouteStep
+
+One turn-by-turn step of a {@link <a href="#route">Route</a>}.
+
+| Prop               | Type                | Description                                                |
+| ------------------ | ------------------- | ---------------------------------------------------------- |
+| **`instructions`** | <code>string</code> | Human-readable instruction, e.g. `Turn left onto Main St`. |
+| **`distance`**     | <code>number</code> | Length of this step in metres.                             |
+
+
 #### MapBounds
 
 The rectangle the native map should occupy, in CSS pixels.
@@ -1646,6 +1705,13 @@ A kind of suggestion `searchAutocomplete` may return, mirroring
 - `query` - search-query suggestions ("coffee near me") rather than places.
 
 <code>'address' | 'pointOfInterest' | 'query'</code>
+
+
+#### TransportType
+
+How to travel, for `computeRoute`. Defaults to `automobile`.
+
+<code>'automobile' | 'walking' | 'transit'</code>
 
 
 #### MapLongClickCallbackData
