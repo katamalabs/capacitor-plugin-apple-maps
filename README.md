@@ -40,6 +40,9 @@ Maps and Android/web to Google Maps** behind one thin abstraction.
   ETA, route geometry, turn-by-turn steps, and alternate routes for automobile,
   walking, or transit. Returns data only - pass a route's `path` to
   `addPolylines` to draw it.
+- **Open in Maps** - keyless `openInMaps` via `MKMapItem.openMaps`: hand off a
+  place to the system Maps app, or open turn-by-turn directions to it from a
+  given origin or the device's current location.
 - **Appearance & controls** - map type, traffic, points of interest, compass,
   scale, forced color scheme, per-gesture toggles, and edge padding.
 - **Events** - camera idle / move-started, marker click, info-window click,
@@ -218,6 +221,7 @@ const map =
 * [`reverseGeocode(...)`](#reversegeocode)
 * [`geocode(...)`](#geocode)
 * [`computeRoute(...)`](#computeroute)
+* [`openInMaps(...)`](#openinmaps)
 * [`onResize(...)`](#onresize)
 * [`onDisplay(...)`](#ondisplay)
 * [`onScroll(...)`](#onscroll)
@@ -953,6 +957,29 @@ action rather than on every map move to avoid MapKit's rate limit.
 --------------------
 
 
+### openInMaps(...)
+
+```typescript
+openInMaps(options: { destination: MapsLaunchPlace; directions?: { origin?: MapsLaunchPlace; transportType?: TransportType; }; showsTraffic?: boolean; mapType?: MapType; }) => Promise<void>
+```
+
+Hand off to the system Maps app (iOS, `MKMapItem.openMaps`). No API key
+needed and no map instance required - it leaves the host app and opens Maps.
+
+With just `destination`, Maps shows that place. Add `directions` to open
+turn-by-turn navigation to it instead; omit `directions.origin` to route
+from the device's current location (the Maps app asks for its own location
+permission - this plugin's `location` permission does not gate it).
+
+Resolves once the hand-off is requested; it does not wait for Maps to open.
+
+| Param         | Type                                                                                                                                                                                                                                                                                   |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`options`** | <code>{ destination: <a href="#mapslaunchplace">MapsLaunchPlace</a>; directions?: { origin?: <a href="#mapslaunchplace">MapsLaunchPlace</a>; transportType?: <a href="#transporttype">TransportType</a>; }; showsTraffic?: boolean; mapType?: <a href="#maptype">MapType</a>; }</code> |
+
+--------------------
+
+
 ### onResize(...)
 
 ```typescript
@@ -1531,6 +1558,17 @@ One turn-by-turn step of a {@link <a href="#route">Route</a>}.
 | ------------------ | ------------------- | ---------------------------------------------------------- |
 | **`instructions`** | <code>string</code> | Human-readable instruction, e.g. `Turn left onto Main St`. |
 | **`distance`**     | <code>number</code> | Length of this step in metres.                             |
+
+
+#### MapsLaunchPlace
+
+A place to hand off to the system Maps app via {@link openInMaps} - a
+coordinate plus an optional label for its pin. Maps to an `MKMapItem`.
+
+| Prop             | Type                                      | Description                                                                   |
+| ---------------- | ----------------------------------------- | ----------------------------------------------------------------------------- |
+| **`coordinate`** | <code><a href="#latlng">LatLng</a></code> | The coordinate to open, or the destination when asking for directions.        |
+| **`name`**       | <code>string</code>                       | Label for the pin in the Maps app. Falls back to the coordinate when omitted. |
 
 
 #### MapBounds

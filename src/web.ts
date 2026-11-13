@@ -180,6 +180,10 @@ export class CapacitorAppleMapsWeb extends WebPlugin implements CapacitorAppleMa
     this.notAvailable();
   }
 
+  async openInMaps(): Promise<void> {
+    this.notAvailable();
+  }
+
   async onResize(): Promise<void> {
     this.notAvailable();
   }

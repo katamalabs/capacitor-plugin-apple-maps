@@ -1,6 +1,8 @@
 import type {
   GeocodeResult,
   LatLng,
+  MapsLaunchPlace,
+  MapType,
   PermissionStatus,
   Route,
   SearchCompletion,
@@ -98,4 +100,22 @@ export function computeRoute(options: {
   arrivalDate?: number;
 }): Promise<{ routes: Route[] }> {
   return CapacitorAppleMaps.computeRoute(options);
+}
+
+/**
+ * Hand off to the system Maps app (iOS, `MKMapItem.openMaps`). No API key and no
+ * map instance needed. With just `destination`, Maps shows that place; add
+ * `directions` to open turn-by-turn navigation to it, routing from
+ * `directions.origin` or - when omitted - the device's current location.
+ */
+export function openInMaps(options: {
+  destination: MapsLaunchPlace;
+  directions?: {
+    origin?: MapsLaunchPlace;
+    transportType?: TransportType;
+  };
+  showsTraffic?: boolean;
+  mapType?: MapType;
+}): Promise<void> {
+  return CapacitorAppleMaps.openInMaps(options);
 }

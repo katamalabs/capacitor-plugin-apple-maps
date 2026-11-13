@@ -452,6 +452,17 @@ export interface SearchRegion {
 export type TransportType = 'automobile' | 'walking' | 'transit';
 
 /**
+ * A place to hand off to the system Maps app via {@link openInMaps} - a
+ * coordinate plus an optional label for its pin. Maps to an `MKMapItem`.
+ */
+export interface MapsLaunchPlace {
+  /** The coordinate to open, or the destination when asking for directions. */
+  coordinate: LatLng;
+  /** Label for the pin in the Maps app. Falls back to the coordinate when omitted. */
+  name?: string;
+}
+
+/**
  * One route from `computeRoute`. Data only - the geometry and figures MapKit
  * computed, with no map side effects. Draw `path` with {@link addPolylines}.
  */
@@ -710,6 +721,33 @@ export interface CapacitorAppleMapsPlugin {
     /** Arrive by this time (Unix ms). Alternative to `departureDate`; ignored if both are set. */
     arrivalDate?: number;
   }): Promise<{ routes: Route[] }>;
+
+  /**
+   * Hand off to the system Maps app (iOS, `MKMapItem.openMaps`). No API key
+   * needed and no map instance required - it leaves the host app and opens Maps.
+   *
+   * With just `destination`, Maps shows that place. Add `directions` to open
+   * turn-by-turn navigation to it instead; omit `directions.origin` to route
+   * from the device's current location (the Maps app asks for its own location
+   * permission - this plugin's `location` permission does not gate it).
+   *
+   * Resolves once the hand-off is requested; it does not wait for Maps to open.
+   */
+  openInMaps(options: {
+    /** The place Maps shows, or the destination when `directions` is set. */
+    destination: MapsLaunchPlace;
+    /** Open directions to `destination` instead of just showing it. */
+    directions?: {
+      /** Where the route starts. Omit to route from the device's current location. */
+      origin?: MapsLaunchPlace;
+      /** Travel mode. Defaults to `automobile`. */
+      transportType?: TransportType;
+    };
+    /** Overlay live traffic in the opened map. Defaults to `false`. */
+    showsTraffic?: boolean;
+    /** Base map imagery for the opened map. Defaults to the Maps app's current setting. */
+    mapType?: MapType;
+  }): Promise<void>;
 
   /** Keep the native frame in sync as the element resizes. */
   onResize(options: { id: string; mapBounds: MapBounds }): Promise<void>;

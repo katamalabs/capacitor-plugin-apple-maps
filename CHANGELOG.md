@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0]
+
+### Added
+
+- **`openInMaps` — hand off to the system Maps app.** A new keyless, map-less
+  function over `MKMapItem.openMaps` that leaves the host app and opens Apple
+  Maps. Give it a `destination` (a `MapsLaunchPlace`: a `{ lat, lng }`
+  `coordinate` plus an optional `name` for the pin) and Maps shows that place.
+  Add `directions` to open turn-by-turn navigation to it instead — set
+  `directions.transportType` to `automobile` (default), `walking` or `transit`,
+  and `directions.origin` to a start place, or omit it to route from the
+  device's current location (the Maps app asks for its own location permission,
+  so this plugin's `location` permission does not gate it). `showsTraffic` and
+  `mapType` tune the opened map. It resolves once the hand-off is requested, not
+  when Maps appears. Needs no API key. iOS only; web/Android reject with
+  `unavailable`. `@capacitor/google-maps` has no counterpart to mirror.
+
 ## [0.9.0]
 
 ### Added
