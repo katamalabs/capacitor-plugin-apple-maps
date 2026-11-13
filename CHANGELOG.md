@@ -5,7 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.10.0]
+## [1.0.0]
+
+First stable release. The public API — the `AppleMap` wrapper and the keyless
+top-level functions (`searchAutocomplete`, `searchPlaces`, `searchResolve`,
+`geocode`, `reverseGeocode`, `computeRoute`, `openInMaps`) — is now considered
+stable and follows semantic versioning: breaking changes will bump the major
+version. It mirrors `@capacitor/google-maps` where a counterpart exists, so an
+app can route iOS to Apple Maps and Android/web to Google Maps behind one
+abstraction.
 
 ### Added
 
